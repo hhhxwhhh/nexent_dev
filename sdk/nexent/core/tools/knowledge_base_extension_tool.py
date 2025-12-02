@@ -93,7 +93,15 @@ class KnowledgeBaseExtensionTool(Tool):
         self.index_names = index_names if index_names is not None else []
         self.observer = observer
         self.embedding_model = embedding_model
-        self.vdb_core = vdb_core
+        
+        # Check if vdb_core is a FieldInfo object and handle appropriately
+        if hasattr(vdb_core, '__class__') and 'FieldInfo' in vdb_core.__class__.__name__:
+            # This is a FieldInfo object, set to None to avoid errors
+            logger.warning("vdb_core parameter received as FieldInfo object, setting to None")
+            self.vdb_core = None
+        else:
+            self.vdb_core = vdb_core
+            
         self.data_process_service_url = data_process_service_url
         self.running_prompt_zh = "知识库操作处理中..."
         self.running_prompt_en = "Processing knowledge base operation..."
@@ -245,6 +253,10 @@ class KnowledgeBaseExtensionTool(Tool):
         """List documents in the knowledge base"""
         self._send_tool_message("list_documents")
         
+        # Check if vdb_core is properly initialized
+        if self.vdb_core is None:
+            raise Exception("Vector database core (vdb_core) is not properly initialized")
+        
         target_index_names = index_names if index_names is not None else self.index_names
         
         logger.info(f"KnowledgeBaseExtensionTool list_documents called with index_names: {target_index_names}")
@@ -255,6 +267,10 @@ class KnowledgeBaseExtensionTool(Tool):
             # Get documents for each index
             for index_name in target_index_names:
                 try:
+                    # Check if vdb_core has the required method
+                    if not hasattr(self.vdb_core, 'get_documents_detail'):
+                        raise Exception(f"Vector database core does not have get_documents_detail method. Type: {type(self.vdb_core)}")
+                    
                     # Get document details from vector database
                     documents = self.vdb_core.get_documents_detail(index_name)
                     for doc in documents:
@@ -330,6 +346,14 @@ class KnowledgeBaseExtensionTool(Tool):
 
     def _search_hybrid(self, query: str, index_names: List[str]) -> Dict[str, Any]:
         """Perform hybrid search combining accurate and semantic search"""
+        # Check if vdb_core is properly initialized
+        if self.vdb_core is None:
+            raise Exception("Vector database core (vdb_core) is not properly initialized")
+        
+        # Check if vdb_core has the required method
+        if not hasattr(self.vdb_core, 'hybrid_search'):
+            raise Exception(f"Vector database core does not have hybrid_search method. Type: {type(self.vdb_core)}")
+            
         try:
             results = self.vdb_core.hybrid_search(
                 index_names=index_names,
@@ -344,6 +368,14 @@ class KnowledgeBaseExtensionTool(Tool):
 
     def _search_accurate(self, query: str, index_names: List[str]) -> Dict[str, Any]:
         """Perform accurate text matching search"""
+        # Check if vdb_core is properly initialized
+        if self.vdb_core is None:
+            raise Exception("Vector database core (vdb_core) is not properly initialized")
+        
+        # Check if vdb_core has the required method
+        if not hasattr(self.vdb_core, 'accurate_search'):
+            raise Exception(f"Vector database core does not have accurate_search method. Type: {type(self.vdb_core)}")
+            
         try:
             results = self.vdb_core.accurate_search(
                 index_names=index_names,
@@ -357,6 +389,14 @@ class KnowledgeBaseExtensionTool(Tool):
 
     def _search_semantic(self, query: str, index_names: List[str]) -> Dict[str, Any]:
         """Perform semantic similarity search"""
+        # Check if vdb_core is properly initialized
+        if self.vdb_core is None:
+            raise Exception("Vector database core (vdb_core) is not properly initialized")
+        
+        # Check if vdb_core has the required method
+        if not hasattr(self.vdb_core, 'semantic_search'):
+            raise Exception(f"Vector database core does not have semantic_search method. Type: {type(self.vdb_core)}")
+            
         try:
             results = self.vdb_core.semantic_search(
                 index_names=index_names,
