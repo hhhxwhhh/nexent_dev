@@ -1848,6 +1848,7 @@ def get_agent_call_relationship_impl(agent_id: int, tenant_id: str) -> dict:
     
 
 
+
 async def create_pathology_expert_agent(tenant_id: str, user_id: str) -> dict:
     """
     创建病理学专家智能体
@@ -1862,12 +1863,14 @@ async def create_pathology_expert_agent(tenant_id: str, user_id: str) -> dict:
     try:
         # 导入创建智能体信息的函数
         from agents.create_agent_info import create_pathology_expert_agent_info
+        from database.agent_db import create_agent
         
         # 创建智能体信息
         agent_info = create_pathology_expert_agent_info(tenant_id, user_id)
         
         # 保存到数据库
-        agent_id = create_or_update_agent(agent_info)
+        created_agent = create_agent(agent_info, tenant_id, user_id)
+        agent_id = created_agent["agent_id"]
         
         logger.info(f"Pathology expert agent created with ID: {agent_id}")
         
@@ -1878,4 +1881,6 @@ async def create_pathology_expert_agent(tenant_id: str, user_id: str) -> dict:
     except Exception as e:
         logger.error(f"Failed to create pathology expert agent: {str(e)}")
         raise Exception(f"创建病理学专家智能体失败: {str(e)}")
+
+
 
