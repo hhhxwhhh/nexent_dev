@@ -4,7 +4,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from apps.agent_app import agent_config_router as agent_router
+from apps.agent_app import agent_config_router as agent_config_router
+from apps.agent_app import agent_runtime_router as agent_runtime_router
 from apps.config_sync_app import router as config_sync_router
 from apps.vectordatabase_app import router as vectordatabase_router
 from apps.file_management_app import file_management_config_router as file_manager_router
@@ -19,6 +20,9 @@ from apps.tenant_config_app import router as tenant_config_router
 from apps.tool_config_app import router as tool_config_router
 from apps.user_management_app import router as user_management_router
 from apps.voice_app import voice_config_router as voice_router
+from apps.memory_config_app import router as memory_config_router
+from apps.conversation_management_app import router as conversation_router
+
 from consts.const import IS_SPEED_MODE
 
 # Import monitoring utilities
@@ -40,12 +44,15 @@ app.add_middleware(
 app.include_router(me_model_manager_router)
 app.include_router(model_manager_router)
 app.include_router(config_sync_router)
-app.include_router(agent_router)
+app.include_router(agent_config_router)
+app.include_router(agent_runtime_router)
 app.include_router(vectordatabase_router)
 app.include_router(voice_router)
 app.include_router(file_manager_router)
 app.include_router(proxy_router)
 app.include_router(tool_config_router)
+app.include_router(memory_config_router)
+app.include_router(conversation_router)
 
 # Choose user management router based on IS_SPEED_MODE
 if IS_SPEED_MODE:
@@ -82,6 +89,3 @@ async def generic_exception_handler(request, exc):
         status_code=500,
         content={"message": "Internal server error, please try again later."},
     )
-
-
-

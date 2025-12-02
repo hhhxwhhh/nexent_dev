@@ -202,6 +202,8 @@ class NexentAgent:
 
         observer = self.agent.observer
         try:
+            final_answer = ""
+            step_log = None
             for step_log in self.agent.run(query, stream=True, reset=reset):
                 # Add content to observer
                 if not isinstance(step_log, ActionStep):
@@ -213,7 +215,12 @@ class NexentAgent:
                 if hasattr(step_log, "error") and step_log.error is not None:
                     observer.add_message("", ProcessType.ERROR, str(step_log.error))
 
-            final_answer = step_log.final_answer  # Last log is the run's final_answer
+            # 安全地获取最终答案
+            if step_log is not None and hasattr(step_log, "final_answer"):
+                final_answer = step_log.final_answer
+            else:
+                # 如果没有最终答案，尝试从observer获取
+                final_answer = observer.get_final_answer() or ""
 
             if isinstance(final_answer, AgentText):
                 final_answer_str = convert_code_format(final_answer.to_string())
@@ -229,8 +236,8 @@ class NexentAgent:
                                      "Agent execution interrupted by external stop signal")
         except Exception as e:
             observer.add_message(agent_name=self.agent.agent_name, process_type=ProcessType.ERROR,
-                                 content=f"Error in interaction: {str(e)}")
-            raise ValueError(f"Error in interaction: {str(e)}")
+                                 content=f"Run Agent Error: {str(e)}")
+            raise ValueError(f"Error in agent_run_thread: {str(e)}") from e
 
     def set_agent(self, agent: CoreAgent):
         if not isinstance(agent, CoreAgent):

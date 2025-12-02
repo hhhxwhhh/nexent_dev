@@ -106,30 +106,37 @@ export const handleStreamResponse = async (
 
               // Process different types of messages
               switch (messageType) {
-                case chatConfig.messageTypes.STEP_COUNT:
-                  // Increment the counter for each new step
-                  stepIdCounter.current += 1;
+                case chatConfig.messageTypes.ERROR:
+                  // 特殊处理错误消息，避免因为索引越界导致整个流程中断
+                  console.warn('Received error from backend:', messageContent);
+                  
+                  // 添加错误消息到当前步骤中
+                  if (!currentStep) {
+                    currentStep = {
+                      id: `step-error-${Date.now()}-${Math.random()
+                        .toString(36)
+                        .substring(2, 9)}`,
+                      title: "Error",
+                      content: "",
+                      expanded: true,
+                      contents: [],
+                      metrics: "",
+                      thinking: { content: "", expanded: true },
+                      code: { content: "", expanded: true },
+                      output: { content: "", expanded: true },
+                    };
+                  }
 
-                  // Create a new step - use the counter and UUID combination to generate a unique ID
-                  currentStep = {
-                    id: `step-${
-                      stepIdCounter.current
-                    }-${Date.now()}-${Math.random()
+                  // 添加错误内容到当前步骤的内容数组中
+                  currentStep.contents.push({
+                    id: `error-${Date.now()}-${Math.random()
                       .toString(36)
-                      .substring(2, 9)}`,
-                    title: messageContent.trim(),
-                    content: "",
+                      .substring(2, 7)}`,
+                    type: chatConfig.messageTypes.ERROR,
+                    content: messageContent,
                     expanded: true,
-                    contents: [], // Use an array to store all content in order
-                    metrics: "",
-                    thinking: { content: "", expanded: true },
-                    code: { content: "", expanded: true },
-                    output: { content: "", expanded: true },
-                  };
-
-                  // Reset status tracking variables
-                  lastContentType = null;
-                  lastModelOutputIndex = -1;
+                    timestamp: Date.now(),
+                  });
 
                   break;
 
@@ -561,9 +568,16 @@ export const handleStreamResponse = async (
                   break;
 
                 case chatConfig.messageTypes.FINAL_ANSWER:
-                  // Accumulate final answer content and process user break tag
-                  finalAnswer += processUserBreakTag(messageContent, t);
+                  // 安全地累积最终答案内容，并处理用户中断标签
+                  try {
+                    finalAnswer += processUserBreakTag(messageContent, t);
+                  } catch (e) {
+                    console.error('Error processing final answer:', e);
+                    // 即使处理出错也继续执行
+                    finalAnswer += messageContent || '';
+                  }
                   break;
+
 
                 case chatConfig.messageTypes.PARSE:
                   // Code display message, skip
