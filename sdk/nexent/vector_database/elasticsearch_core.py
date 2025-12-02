@@ -857,26 +857,40 @@ class ElasticSearchCore(VectorDatabaseCore):
         Search for documents using fuzzy text matching across multiple indices.
 
         Args:
-            index_names: Name of the index to search in
+            index_names: List of index names to search in
             query_text: The text query to search for
             top_k: Number of results to return
 
         Returns:
             List of search results with scores and document content
         """
+        # Ensure top_k has a valid value
+        if top_k is None or top_k <= 0:
+            top_k = 5  # Default value
+        
         # Join index names for multi-index search
         index_pattern = ",".join(index_names)
 
-        weights = calculate_term_weights(query_text)
+        # Calculate term weights
+        term_weights = calculate_term_weights(query_text)
 
-        # Prepare the search query using match query for fuzzy matching
-        search_query = build_weighted_query(query_text, weights) | {
-            "size": top_k,
-            "_source": {"excludes": ["embedding"]},
-        }
+        # Build weighted query
+        weighted_query = build_weighted_query(query_text, term_weights)
+
+        # Add size parameter to limit results
+        weighted_query["size"] = top_k
+
+        # Exclude embedding field from results
+        if "_source" not in weighted_query:
+            weighted_query["_source"] = {"excludes": ["embedding"]}
+        elif isinstance(weighted_query["_source"], dict) and "excludes" in weighted_query["_source"]:
+            if "embedding" not in weighted_query["_source"]["excludes"]:
+                weighted_query["_source"]["excludes"].append("embedding")
+        else:
+            weighted_query["_source"] = {"excludes": ["embedding"]}
 
         # Execute the search across multiple indices
-        return self.exec_query(index_pattern, search_query)
+        return self.exec_query(index_pattern, weighted_query)
 
     def exec_query(self, index_pattern, search_query):
         response = self.client.search(index=index_pattern, body=search_query)
@@ -907,6 +921,10 @@ class ElasticSearchCore(VectorDatabaseCore):
         Returns:
             List of search results with scores and document content
         """
+        # Ensure top_k has a valid value
+        if top_k is None or top_k <= 0:
+            top_k = 5  # Default value
+        
         # Join index names for multi-index search
         index_pattern = ",".join(index_names)
 
@@ -949,6 +967,10 @@ class ElasticSearchCore(VectorDatabaseCore):
         Returns:
             List of search results sorted by combined score
         """
+        # Ensure top_k has a valid value
+        if top_k is None or top_k <= 0:
+            top_k = 5  # Default value
+        
         # Get results from both searches
         accurate_results = self.accurate_search(
             index_names, query_text, top_k=top_k)
@@ -978,59 +1000,50 @@ class ElasticSearchCore(VectorDatabaseCore):
             try:
                 doc_id = result["document"]["id"]
                 if doc_id in combined_results:
+                    # Document exists in both results, merge scores
                     combined_results[doc_id]["semantic_score"] = result.get(
                         "score", 0)
                 else:
+                    # Document only exists in semantic results
                     combined_results[doc_id] = {
                         "document": result["document"],
                         "accurate_score": 0,
                         "semantic_score": result.get("score", 0),
-                        "index": result["index"],  # Keep track of source index
+                        "index": result["index"],
                     }
             except KeyError as e:
                 logger.warning(
                     f"Warning: Missing required field in semantic result: {e}")
                 continue
 
-        # Calculate maximum scores
-        max_accurate = max([r.get("score", 0)
-                           for r in accurate_results]) if accurate_results else 1
-        max_semantic = max([r.get("score", 0)
-                           for r in semantic_results]) if semantic_results else 1
-
-        # Calculate combined scores and sort
-        results = []
+        # Calculate combined scores and sort results
+        final_results = []
         for doc_id, result in combined_results.items():
-            try:
-                # Get scores safely
-                accurate_score = result.get("accurate_score", 0)
-                semantic_score = result.get("semantic_score", 0)
+            # Normalize scores to 0-1 range
+            accurate_score = normalize_score(
+                result["accurate_score"], MAX_ACCURATE_SCORE)
+            semantic_score = normalize_score(
+                result["semantic_score"], MAX_SEMANTIC_SCORE)
 
-                # Normalize scores
-                normalized_accurate = accurate_score / max_accurate if max_accurate > 0 else 0
-                normalized_semantic = semantic_score / max_semantic if max_semantic > 0 else 0
+            # Calculate weighted combined score
+            combined_score = (
+                weight_accurate * accurate_score +
+                (1 - weight_accurate) * semantic_score
+            )
 
-                # Calculate weighted combined score
-                combined_score = weight_accurate * normalized_accurate + \
-                    (1 - weight_accurate) * normalized_semantic
+            final_results.append({
+                "document": result["document"],
+                "score": combined_score,
+                "scores": {
+                    "accurate": accurate_score,
+                    "semantic": semantic_score
+                },
+                "index": result["index"],
+            })
 
-                results.append(
-                    {
-                        "score": combined_score,
-                        "document": result["document"],
-                        # Include source index in results
-                        "index": result["index"],
-                        "scores": {"accurate": normalized_accurate, "semantic": normalized_semantic},
-                    }
-                )
-            except KeyError as e:
-                logger.warning(
-                    f"Warning: Error processing result for doc_id {doc_id}: {e}")
-                continue
-
-        # Sort by combined score and return top k results
-        results.sort(key=lambda x: x["score"], reverse=True)
-        return results[:top_k]
+        # Sort by combined score in descending order and limit to top_k
+        final_results.sort(key=lambda x: x["score"], reverse=True)
+        return final_results[:top_k]
 
     # ---- STATISTICS AND MONITORING ----
     def get_documents_detail(self, index_name: str) -> List[Dict[str, Any]]:

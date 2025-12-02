@@ -1,6 +1,9 @@
 import json
 import logging
 from typing import List, Optional, Dict, Any
+import os
+import requests
+from pathlib import Path
 
 from pydantic import Field
 from smolagents.tools import Tool
@@ -73,6 +76,7 @@ class KnowledgeBaseExtensionTool(Tool):
         observer: MessageObserver = Field(description="Message observer", default=None, exclude=True),
         embedding_model: BaseEmbedding = Field(description="The embedding model to use", default=None, exclude=True),
         vdb_core: VectorDatabaseCore = Field(description="Vector database client", default=None, exclude=True),
+        data_process_service_url: str = Field(description="Data processing service URL", default="http://localhost:5012", exclude=True),
     ):
         """Initialize the enhanced knowledge base tool.
 
@@ -82,6 +86,7 @@ class KnowledgeBaseExtensionTool(Tool):
             observer (MessageObserver, optional): Message observer instance.
             embedding_model (BaseEmbedding, optional): Embedding model to use.
             vdb_core (VectorDatabaseCore, optional): Vector database client.
+            data_process_service_url (str, optional): URL of the data processing service.
         """
         super().__init__()
         self.top_k = top_k
@@ -89,6 +94,7 @@ class KnowledgeBaseExtensionTool(Tool):
         self.observer = observer
         self.embedding_model = embedding_model
         self.vdb_core = vdb_core
+        self.data_process_service_url = data_process_service_url
         self.running_prompt_zh = "知识库操作处理中..."
         self.running_prompt_en = "Processing knowledge base operation..."
 
@@ -174,14 +180,59 @@ class KnowledgeBaseExtensionTool(Tool):
         )
         
         try:
-            # Here we would integrate with the data processing service to handle the file
-            # This is a simplified implementation showing the concept
+            # Check if file exists
+            if not os.path.exists(file_path):
+                raise FileNotFoundError(f"File not found: {file_path}")
+            
+            # Get file name
+            file_name = os.path.basename(file_path)
+            
+            # Process each index separately
+            results = []
+            for index_name in target_index_names:
+                # Prepare the request to data processing service
+                url = f"{self.data_process_service_url}/tasks"
+                
+                # Prepare payload
+                payload = {
+                    "source": file_path,
+                    "source_type": "local",
+                    "chunking_strategy": chunking_strategy,
+                    "index_name": index_name,
+                    "original_filename": file_name
+                }
+                
+                # Make request to data processing service
+                try:
+                    response = requests.post(url, json=payload, timeout=30)
+                    if response.status_code == 201:
+                        task_data = response.json()
+                        results.append({
+                            "index": index_name,
+                            "status": "success",
+                            "task_id": task_data.get("task_id"),
+                            "message": f"Document queued for processing in index {index_name}"
+                        })
+                    else:
+                        results.append({
+                            "index": index_name,
+                            "status": "error",
+                            "message": f"Failed to queue document processing for index {index_name}: {response.text}"
+                        })
+                except requests.RequestException as e:
+                    results.append({
+                        "index": index_name,
+                        "status": "error",
+                        "message": f"Failed to connect to data processing service for index {index_name}: {str(e)}"
+                    })
+            
             result = {
-                "status": "uploaded",
+                "status": "completed",
                 "file_path": file_path,
                 "indexes": target_index_names,
                 "chunking_strategy": chunking_strategy,
-                "message": f"Document {file_path} has been queued for processing and will be added to the knowledge base."
+                "results": results,
+                "message": f"Document processing initiated for {len(target_index_names)} index(es)"
             }
             
             return json.dumps(result, ensure_ascii=False)
@@ -199,13 +250,30 @@ class KnowledgeBaseExtensionTool(Tool):
         logger.info(f"KnowledgeBaseExtensionTool list_documents called with index_names: {target_index_names}")
         
         try:
-            # This would typically query the database for document listings
+            all_documents = []
+            
+            # Get documents for each index
+            for index_name in target_index_names:
+                try:
+                    # Get document details from vector database
+                    documents = self.vdb_core.get_documents_detail(index_name)
+                    for doc in documents:
+                        doc["index_name"] = index_name
+                    all_documents.extend(documents)
+                except Exception as e:
+                    logger.warning(f"Failed to list documents for index {index_name}: {str(e)}")
+                    # Add error entry for this index
+                    all_documents.append({
+                        "index_name": index_name,
+                        "error": str(e)
+                    })
+            
             result = {
                 "status": "success",
                 "operation": "list_documents",
                 "indexes": target_index_names,
-                "message": f"Retrieved document list for indexes: {target_index_names}",
-                "documents": []  # In a real implementation, this would contain document metadata
+                "message": f"Retrieved document list for {len(target_index_names)} index(es)",
+                "documents": all_documents
             }
             
             return json.dumps(result, ensure_ascii=False)
@@ -225,12 +293,33 @@ class KnowledgeBaseExtensionTool(Tool):
         )
         
         try:
-            # This would typically delete the document from both the vector database and file storage
+            results = []
+            
+            # Delete document from each index
+            for index_name in target_index_names:
+                try:
+                    # Delete documents from vector database
+                    deleted_count = self.vdb_core.delete_documents(index_name, document_id)
+                    results.append({
+                        "index": index_name,
+                        "status": "success",
+                        "deleted_count": deleted_count,
+                        "message": f"Deleted {deleted_count} documents from index {index_name}"
+                    })
+                except Exception as e:
+                    logger.error(f"Failed to delete document from index {index_name}: {str(e)}")
+                    results.append({
+                        "index": index_name,
+                        "status": "error",
+                        "message": str(e)
+                    })
+            
             result = {
-                "status": "deleted",
+                "status": "completed",
                 "document_id": document_id,
                 "indexes": target_index_names,
-                "message": f"Document {document_id} has been marked for deletion from indexes: {target_index_names}"
+                "results": results,
+                "message": f"Document deletion processed for {len(target_index_names)} index(es)"
             }
             
             return json.dumps(result, ensure_ascii=False)
