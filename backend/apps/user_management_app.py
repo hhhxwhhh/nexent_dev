@@ -48,7 +48,7 @@ async def signup(request: UserSignUpRequest):
         if request.is_admin:
             success_message = "🎉 Admin account registered successfully! You now have system management permissions."
         else:
-            success_message = "🎉 User account registered successfully! Please start experiencing the AI assistant service."
+            success_message = "🎉 Welcome! Your account has been successfully created. Start exploring our amazing AI features today!"
         return JSONResponse(status_code=HTTPStatus.OK,
                             content={"message":success_message, "data":user_data})
     except NoInviteCodeException as e:

@@ -82,3 +82,6 @@ async def generic_exception_handler(request, exc):
         status_code=500,
         content={"message": "Internal server error, please try again later."},
     )
+
+
+
