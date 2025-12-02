@@ -172,3 +172,23 @@ async def get_agent_call_relationship_api(agent_id: int, authorization: Optional
         logger.error(f"Agent call relationship error: {str(e)}")
         raise HTTPException(status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
                             detail="Failed to get agent call relationship.")
+        
+        
+        
+
+@agent_config_router.post("/create_pathology_expert")
+async def create_pathology_expert_api(authorization: Optional[str] = Header(None)):
+    """
+    创建病理学专家智能体
+    """
+    try:
+        user_id, tenant_id = get_current_user_id(authorization)
+        from services.agent_service import create_pathology_expert_agent
+        result = await create_pathology_expert_agent(tenant_id, user_id)
+        return result
+    except Exception as e:
+        logger.error(f"Create pathology expert agent error: {str(e)}")
+        raise HTTPException(
+            status_code=HTTPStatus.INTERNAL_SERVER_ERROR, 
+            detail=f"创建病理学专家智能体失败: {str(e)}"
+        )

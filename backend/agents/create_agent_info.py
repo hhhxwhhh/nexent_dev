@@ -393,6 +393,7 @@ async def create_agent_run_info(
     return agent_run_info
 
 
+
 def create_pathology_expert_agent_info(tenant_id: str, user_id: str) -> dict:
     """
     创建病理学专家智能体信息
@@ -453,4 +454,3 @@ def create_pathology_expert_agent_info(tenant_id: str, user_id: str) -> dict:
     }
     
     return agent_info
-
