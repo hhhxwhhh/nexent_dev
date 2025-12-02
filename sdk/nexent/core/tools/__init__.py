@@ -14,6 +14,7 @@ from .list_directory_tool import ListDirectoryTool
 from .terminal_tool import TerminalTool
 from .analyze_text_file_tool import AnalyzeTextFileTool
 from .analyze_image_tool import AnalyzeImageTool
+from .knowledge_base_extension_tool import KnowledgeBaseExtensionTool
 
 __all__ = [
     "ExaSearchTool", 
@@ -31,5 +32,6 @@ __all__ = [
     "ListDirectoryTool",
     "TerminalTool",
     "AnalyzeTextFileTool",
-    "AnalyzeImageTool"
+    "AnalyzeImageTool",
+    "KnowledgeBaseExtensionTool"
 ]
