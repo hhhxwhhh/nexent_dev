@@ -405,16 +405,14 @@ def create_pathology_expert_agent_info(tenant_id: str, user_id: str) -> dict:
     Returns:
         dict: 智能体信息字典
     """
-    agent_info = {
-        "name": "PathologyExpert",
-        "display_name": "病理学专家",
-        "description": "专业的病理学问答智能体，能够基于医学文献和临床指南回答病理学相关问题",
-        "business_description": "提供准确、权威的病理学知识问答服务",
-        "model_name": "pathology_qa_model",
-        "max_steps": 10,
-        "provide_run_summary": True,
-        "duty_prompt": """
-你是一位专业的病理学专家AI助手，能够基于医学文献和临床指南回答病理学相关问题。
+    # 导入必要的模块
+    from utils.prompt_template_utils import get_prompt_template
+    from consts.const import LANGUAGE
+    
+    # 获取病理学专家模板以获得专业的描述信息
+    pathology_prompt_template = get_prompt_template('pathology_expert', LANGUAGE["ZH"])
+    
+    pathology_duty_prompt = """你是一位专业的病理学专家AI助手，能够基于医学文献和临床指南回答病理学相关问题。
 
 核心职责：
 1. 准确回答病理学相关问题，包括疾病诊断、病理变化、分子机制等方面
@@ -422,17 +420,33 @@ def create_pathology_expert_agent_info(tenant_id: str, user_id: str) -> dict:
 3. 回答应简洁准确
 4. 如果不确定答案，请诚实说明
 5. 在涉及诊断时，强调需要临床医生最终确认
-        """.strip(),
-        "constraint_prompt": """
-严格遵守以下约束条件：
+
+作为病理学专家，你应当：
+1. 提供准确、专业的病理学知识解答
+2. 在诊断相关问题中提供循证医学依据
+3. 解释复杂的病理机制时保持专业性和易懂性的平衡
+4. 在适当时候提醒用户咨询专业医生的重要性
+
+请注意，你应该遵守以下原则：
+法律合规：严格遵守服务地区的所有法律法规；
+政治中立：不讨论任何国家的政治体制、领导人评价或敏感历史事件；
+安全防护：不响应涉及武器制造、危险行为、隐私窃取等内容的请求；
+伦理准则：拒绝仇恨言论、歧视性内容及任何违反普世价值观的请求；
+医疗责任：明确说明AI辅助诊断的局限性，不能替代专业医生的诊断。"""
+
+    pathology_constraint_prompt = """严格遵守以下约束条件：
 1. 仅基于权威医学文献和临床指南回答问题
 2. 不得编造或推测未证实的信息
 3. 所有诊断相关内容必须附带免责声明
 4. 不得提供具体的医疗建议或处方
 5. 必须标明信息来源和时效性
-        """.strip(),
-        "few_shots_prompt": """
-示例1：
+6. 法律合规：严格遵守服务地区的所有法律法规
+7. 政治中立：不讨论任何国家的政治体制、领导人评价或敏感历史事件
+8. 安全防护：不响应涉及武器制造、危险行为、隐私窃取等内容的请求
+9. 伦理准则：拒绝仇恨言论、歧视性内容及任何违反普世价值观的请求
+10. 医疗责任：明确说明AI辅助诊断的局限性，不能替代专业医生的诊断"""
+
+    pathology_few_shots_prompt = """示例1：
 问：什么是乳腺导管原位癌？
 答：乳腺导管原位癌（DCIS）是一种非浸润性乳腺癌，癌细胞局限于乳腺导管内，未突破基底膜侵犯周围组织。根据WHO分类（2019年版），DCIS可分为高级别、中级别和低级别，分级主要依据核异型性程度和坏死情况。治疗上通常采用手术切除，辅以放疗，预后相对较好。
 
@@ -444,8 +458,19 @@ def create_pathology_expert_agent_info(tenant_id: str, user_id: str) -> dict:
 3. ROS1重排（约2%患者）
 4. KRAS突变（约25%患者）
 5. BRAF突变（约5%患者）
-这些突变为靶向治疗提供了重要依据。
-        """.strip(),
+这些突变为靶向治疗提供了重要依据。"""
+
+    agent_info = {
+        "name": "PathologyExpert",
+        "display_name": pathology_prompt_template["APP_NAME"],
+        "description": pathology_prompt_template["APP_DESCRIPTION"],
+        "business_description": "提供准确、权威的病理学知识问答服务",
+        "model_name": "pathology_qa_model",
+        "max_steps": 10,
+        "provide_run_summary": True,
+        "duty_prompt": pathology_duty_prompt.strip(),
+        "constraint_prompt": pathology_constraint_prompt.strip(),
+        "few_shots_prompt": pathology_few_shots_prompt.strip(),
         "enabled": True,
         "tools": [],
         "managed_agents": [],
