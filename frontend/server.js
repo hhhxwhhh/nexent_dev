@@ -10,43 +10,80 @@ const app = next({
 const handle = app.getRequestHandler();
 
 // Backend addresses
-const HTTP_BACKEND = process.env.HTTP_BACKEND || 'http://localhost:5010'; // config
-const WS_BACKEND = process.env.WS_BACKEND || 'ws://localhost:5014'; // runtime
-const RUNTIME_HTTP_BACKEND = process.env.RUNTIME_HTTP_BACKEND || 'http://localhost:5014'; // runtime
-const MINIO_BACKEND = process.env.MINIO_ENDPOINT || 'http://localhost:9010';
+const HTTP_BACKEND = process.env.HTTP_BACKEND || 'http://172.18.0.10:5010';  // nexent-config IP
+const WS_BACKEND = process.env.WS_BACKEND || 'ws://172.18.0.7:5014';         // nexent-runtime IP
+const RUNTIME_HTTP_BACKEND = process.env.RUNTIME_HTTP_BACKEND || 'http://172.18.0.7:5014';  // nexent-runtime IP
+const MINIO_BACKEND = process.env.MINIO_ENDPOINT || 'http://172.18.0.6:9000'; // nexent-minio IP
 const MARKET_BACKEND = process.env.MARKET_BACKEND || 'http://localhost:8010'; // market
 const PORT = 3000;
 
 const proxy = createProxyServer();
 
+// Add error handling for proxy
+proxy.on('error', (err, req, res) => {
+  console.error('[Proxy] Proxy Error:', err);
+  if (!res.headersSent) {
+    res.writeHead(500, {
+      'Content-Type': 'text/plain',
+    });
+    res.end('Proxy error: ' + err.message);
+  }
+});
+
 app.prepare().then(() => {
   const server = createServer((req, res) => {
     const parsedUrl = parse(req.url, true);
     const { pathname } = parsedUrl;
+    
+    console.log(`[Proxy] Incoming request: ${req.method} ${req.url}`);
 
     // Proxy HTTP requests
     if (pathname.includes('/attachments/') && !pathname.startsWith('/api/')) {
-      proxy.web(req, res, { target: MINIO_BACKEND });
-    } else if (pathname.startsWith('/api/')) {
+      console.log(`[Proxy] Routing to MinIO: ${MINIO_BACKEND}`);
+      proxy.web(req, res, { target: MINIO_BACKEND }, (err) => {
+        console.error('[Proxy] MinIO Proxy Error:', err);
+      });
+    } else if (pathname.startsWith('/runtime-api/')) {
+      // Handle runtime API requests
+      // Rewrite path: /runtime-api/file/preprocess -> /api/file/preprocess
+      console.log(`[Proxy] Routing runtime-api request to: ${RUNTIME_HTTP_BACKEND}`);
+      req.url = req.url.replace('/runtime-api', '/api');
+      proxy.web(req, res, { target: RUNTIME_HTTP_BACKEND, changeOrigin: true }, (err) => {
+        console.error('[Proxy] Runtime API Proxy Error:', err);
+      });
+    } else if (pathname.startsWith('/api/market/')) {
       // Route market endpoints to market backend
-      if (pathname.startsWith('/api/market/')) {
-        // Rewrite path: /api/market/agents -> /agents
-        req.url = req.url.replace('/api/market', '');
-        proxy.web(req, res, { target: MARKET_BACKEND, changeOrigin: true });
-      } else {
-      // Route runtime endpoints to runtime backend, others to config backend
-      const isRuntime =
+      // Rewrite path: /api/market/agents -> /agents
+      console.log(`[Proxy] Routing market request to: ${MARKET_BACKEND}`);
+      req.url = req.url.replace('/api/market', '');
+      proxy.web(req, res, { target: MARKET_BACKEND, changeOrigin: true }, (err) => {
+        console.error('[Proxy] Market Proxy Error:', err);
+      });
+    } else if (pathname.startsWith('/api/')) {
+      // Explicitly route specific endpoints to appropriate services
+      if (
         pathname.startsWith('/api/agent/run') ||
         pathname.startsWith('/api/agent/stop') ||
         pathname.startsWith('/api/conversation/') ||
         pathname.startsWith('/api/memory/') ||
-        pathname.startsWith('/api/file/storage') ||
-        pathname.startsWith('/api/file/preprocess');
-      const target = isRuntime ? RUNTIME_HTTP_BACKEND : HTTP_BACKEND;
-      proxy.web(req, res, { target, changeOrigin: true });
+        pathname.startsWith('/api/file/preprocess') ||
+        (pathname.startsWith('/api/file/storage') && req.method === 'POST')
+      ) {
+        // Route to runtime backend
+        console.log(`[Proxy] Routing API request to Runtime Service: ${RUNTIME_HTTP_BACKEND}`);
+        proxy.web(req, res, { target: RUNTIME_HTTP_BACKEND, changeOrigin: true }, (err) => {
+          console.error('[Proxy] Runtime Service Proxy Error:', err);
+        });
+      } else {
+        // Route to config backend
+        console.log(`[Proxy] Routing API request to Config Service: ${HTTP_BACKEND}`);
+        proxy.web(req, res, { target: HTTP_BACKEND, changeOrigin: true }, (err) => {
+          console.error('[Proxy] Config Service Proxy Error:', err);
+        });
       }
     } else {
       // Let Next.js handle all other requests
+      console.log(`[Proxy] Routing to Next.js`);
       handle(req, res, parsedUrl);
     }
   });
@@ -71,6 +108,7 @@ app.prepare().then(() => {
     console.log('> --- Backend URL Configuration ---');
     console.log(`> HTTP Backend Target: ${HTTP_BACKEND}`);
     console.log(`> WebSocket Backend Target: ${WS_BACKEND}`);
+    console.log(`> Runtime HTTP Backend Target: ${RUNTIME_HTTP_BACKEND}`);
     console.log(`> MinIO Backend Target: ${MINIO_BACKEND}`);
     console.log(`> Market Backend Target: ${MARKET_BACKEND}`);
     console.log('> ---------------------------------');

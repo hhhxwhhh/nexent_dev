@@ -21,15 +21,15 @@ logger = logging.getLogger("pathology_image_analysis_tool")
 
 
 class PathologyClassifier(nn.Module):
-    """病理图像分类模型"""
+    """病理图像分类模型（基于官方ResNet18）"""
     def __init__(self, num_tissue_classes=4, num_pathology_classes=4):
         super(PathologyClassifier, self).__init__()
-        # 使用预训练的ResNet作为特征提取器
-        self.backbone = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)  # 使用预训练权重
+        # 使用PyTorch官方预训练的ResNet18作为特征提取器
+        self.backbone = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)  # 加载官方预训练权重
         # 移除最后的全连接层
         self.backbone.fc = nn.Identity()
         
-        # 组织类型分类头
+        # 组织类型分类头（随机初始化）
         self.tissue_classifier = nn.Sequential(
             nn.Linear(512, 256),
             nn.ReLU(),
@@ -37,7 +37,7 @@ class PathologyClassifier(nn.Module):
             nn.Linear(256, num_tissue_classes)
         )
         
-        # 病理状态分类头
+        # 病理状态分类头（随机初始化）
         self.pathology_classifier = nn.Sequential(
             nn.Linear(512, 256),
             nn.ReLU(),
@@ -45,7 +45,7 @@ class PathologyClassifier(nn.Module):
             nn.Linear(256, num_pathology_classes)
         )
         
-        # 肿瘤检测头
+        # 肿瘤检测头（随机初始化）
         self.tumor_detector = nn.Sequential(
             nn.Linear(512, 256),
             nn.ReLU(),
@@ -54,7 +54,7 @@ class PathologyClassifier(nn.Module):
         )
 
     def forward(self, x, task='tissue'):
-        # 特征提取
+        # 特征提取（使用官方预训练ResNet）
         features = self.backbone(x)
         
         # 根据任务选择对应的分类头
@@ -71,7 +71,7 @@ class PathologyClassifier(nn.Module):
 
 
 class PathologyImageAnalysisTool(Tool):
-    """病理图像分析工具"""
+    """病理图像分析工具（仅使用官方预训练模型）"""
     
     name = "pathology_image_analysis"
     description = (
@@ -87,7 +87,8 @@ class PathologyImageAnalysisTool(Tool):
         "analysis_type": {
             "type": "string",
             "description": "分析类型: tumor_detection(肿瘤检测), cell_count(细胞计数), tissue_classification(组织分类)",
-            "default": "tumor_detection"
+            "default": "tumor_detection",
+            "nullable": True
         },
         "confidence_threshold": {
             "type": "number",
@@ -109,17 +110,15 @@ class PathologyImageAnalysisTool(Tool):
     def __init__(
         self,
         observer: MessageObserver = Field(description="消息观察者", default=None, exclude=True),
-        model_path: str = Field(description="病理图像分析模型路径", default="/models/pathology_resnet18.pth", exclude=True)
+        # 移除自定义模型路径依赖，无需传入
     ):
-        """初始化病理图像分析工具。
+        """初始化病理图像分析工具（仅使用官方预训练模型）。
         
         Args:
             observer (MessageObserver, optional): 消息观察者实例。默认为 None。
-            model_path (str): 病理图像分析模型路径。
         """
         super().__init__()
         self.observer = observer
-        self.model_path = model_path
         self.running_prompt_zh = "正在进行病理图像分析..."
         self.running_prompt_en = "Analyzing pathology image..."
         
@@ -130,44 +129,31 @@ class PathologyImageAnalysisTool(Tool):
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
         
-        # 加载预训练模型
-        self.model = self._load_pretrained_model()
+        # 加载**仅官方预训练的模型**（无自定义权重）
+        self.model = self._load_official_pretrained_model()
         
         # 类别映射
         self.tissue_classes = ['脂肪组织', '肝脏组织', '肌肉组织', '结缔组织']
         self.pathology_classes = ['正常', '轻度病变', '中度病变', '重度病变']
         
-        logger.info(f"PathologyImageAnalysisTool initialized with model: {model_path}")
+        logger.info("PathologyImageAnalysisTool initialized with official pre-trained ResNet18")
 
-    def _load_pretrained_model(self):
-        """加载预训练的病理图像分析模型。
+    def _load_official_pretrained_model(self):
+        """加载**仅PyTorch官方预训练的ResNet18模型**（分类头随机初始化）。
         
         Returns:
             模型对象。
         """
         try:
-            # 创建模型实例
+            # 创建模型实例（backbone使用官方预训练ResNet18，分类头随机初始化）
             model = PathologyClassifier(num_tissue_classes=4, num_pathology_classes=4)
             
-            # 加载预训练权重
-            checkpoint = torch.load(self.model_path, map_location=torch.device('cpu'))
-            model.load_state_dict(checkpoint['state_dict'])
-            
             model.eval()
-            logger.info(f"Successfully loaded pre-trained model from {self.model_path}")
-            return model
-        except FileNotFoundError:
-            logger.error(f"Pre-trained model file not found at {self.model_path}")
-            # 创建一个随机初始化的模型作为后备
-            model = PathologyClassifier(num_tissue_classes=4, num_pathology_classes=4)
-            model.eval()
+            logger.info("Successfully loaded official pre-trained ResNet18 (classification heads randomly initialized)")
             return model
         except Exception as e:
-            logger.error(f"Failed to load pre-trained model: {str(e)}")
-            # 创建一个随机初始化的模型作为后备
-            model = PathologyClassifier(num_tissue_classes=4, num_pathology_classes=4)
-            model.eval()
-            return model
+            logger.error(f"Failed to load official pre-trained model: {str(e)}")
+            raise Exception(f"模型加载失败: {str(e)}")
 
     def forward(
         self, 

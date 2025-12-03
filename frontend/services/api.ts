@@ -2,7 +2,7 @@ import { STATUS_CODES } from "@/const/auth";
 import log from "@/lib/logger";
 
 const API_BASE_URL = '/api';
-
+const RUNTIME_API_BASE_URL = '/runtime-api'; 
 export const API_ENDPOINTS = {
   user: {
     signup: `${API_BASE_URL}/user/signup`,
@@ -65,7 +65,7 @@ export const API_ENDPOINTS = {
       `${API_BASE_URL}/file/storage/${objectName}?download=${download}`,
     delete: (objectName: string) =>
       `${API_BASE_URL}/file/storage/${objectName}`,
-    preprocess: `${API_BASE_URL}/file/preprocess`,
+    preprocess: `${RUNTIME_API_BASE_URL}/file/preprocess`
   },
   proxy: {
     image: (url: string) =>

@@ -22,6 +22,7 @@ file_management_config_router = APIRouter(prefix="/file")
 
 # Handle preflight requests
 @file_management_config_router.options("/{full_path:path}")
+@file_management_runtime_router.options("/{full_path:path}")
 async def options_route(full_path: str):
     return JSONResponse(
         status_code=HTTPStatus.OK,

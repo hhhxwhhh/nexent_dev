@@ -34,7 +34,11 @@ export const storageService = {
     });
     
     if (!response.ok) {
-      throw new Error(`Failed to upload files to Minio: ${response.statusText}`);
+      // Special handling for 405 errors which indicate routing problems
+      if (response.status === 405) {
+        throw new Error(`Routing error: Upload endpoint not found. Please check service configuration.`);
+      }
+      throw new Error(`Failed to upload files to storage: ${response.statusText}`);
     }
     
     return await response.json();
@@ -49,10 +53,53 @@ export const storageService = {
     const response = await fetch(API_ENDPOINTS.storage.file(objectName));
     
     if (!response.ok) {
-      throw new Error(`Failed to get file URL from Minio: ${response.statusText}`);
+      throw new Error(`Failed to get file URL from storage: ${response.statusText}`);
     }
     
     const data = await response.json();
     return data.url;
+  },
+
+  /**
+   * Preprocess files
+   * @param files List of files to preprocess
+   * @param query Query string for preprocessing
+   * @param folder Optional folder path
+   * @returns Response from preprocessing service
+   */
+  async preprocessFiles(
+    files: File[],
+    query: string,
+    folder: string = 'attachments'
+  ) {
+    // Create FormData object
+    const formData = new FormData();
+    
+    // Add files
+    files.forEach(file => {
+      formData.append('files', file);
+    });
+    
+    // Add query parameter
+    formData.append('query', query);
+    
+    // Add folder parameter
+    formData.append('folder', folder);
+    
+    // Send request to runtime API endpoint
+    const response = await fetch(API_ENDPOINTS.storage.preprocess, {
+      method: 'POST',
+      body: formData,
+    });
+    
+    if (!response.ok) {
+      // Special handling for 405 errors which indicate routing problems
+      if (response.status === 405) {
+        throw new Error(`Routing error: Preprocessing endpoint not found. Please check service configuration.`);
+      }
+      throw new Error(`Failed to preprocess files: ${response.statusText}`);
+    }
+    
+    return response;
   }
-}; 
+};

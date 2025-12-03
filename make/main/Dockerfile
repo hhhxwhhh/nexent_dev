@@ -17,7 +17,7 @@ RUN if [ "$APT_MIRROR" = "tsinghua" ]; then \
     fi && \
     apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
-# Install system dependencies required by OpenCV
+# Install system dependencies required by OpenCV and PyTorch
 RUN apt-get update && apt-get install -y \
     libgl1 \
     libglib2.0-0 \
@@ -28,30 +28,56 @@ RUN apt-get update && apt-get install -y \
     libgtk-3-0 \
     && rm -rf /var/lib/apt/lists/*
 
+# Install uv package manager
 RUN pip install --no-cache-dir uv $(test -n "$MIRROR" && echo "-i $MIRROR")
 WORKDIR /opt/backend
 
-# Layer 0: install base dependencies
+# 提前设置虚拟环境变量（关键：确保后续命令使用虚拟环境）
+ENV VIRTUAL_ENV=/opt/backend/.venv
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+ENV PYTHONUNBUFFERED=1
+ENV TORCH_HOME=/root/.cache/torch
+
+# Layer 0: install base dependencies（解决索引策略和依赖冲突）
 COPY backend/pyproject.toml /opt/backend/pyproject.toml
-RUN uv sync --no-cache-dir $(test -n "$MIRROR" && echo "-i $MIRROR") && \
+RUN uv sync --no-cache-dir $(test -n "$MIRROR" && echo "-i $MIRROR") \
+    --extra-index-url https://download.pytorch.org/whl/cpu \
+    --index-strategy unsafe-best-match && \
     uv cache clean
+
 # Layer 1: install sdk in link mode
 COPY sdk /opt/sdk
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install /opt/sdk $(test -n "$MIRROR" && echo "-i $MIRROR")
+
 # Layer 2: copy backend code
 COPY backend /opt/backend
 
-# Copy the stopwords file to the expected location in Docker
+# Copy static files
 COPY baidu_stopwords.txt /opt/baidu_stopwords.txt
 
-# Create SSH key directory for Terminal tool
-RUN mkdir -p /opt/ssh-keys
+# Create necessary directories with proper permissions
+RUN mkdir -p /root/.cache/torch/hub/checkpoints \
+    && mkdir -p /opt/models \
+    && mkdir -p /opt/ssh-keys \
+    && chmod -R 755 /root/.cache/torch \
+    && chmod -R 755 /opt/models \
+    && chmod -R 755 /opt/ssh-keys
+
+# Pre-download PyTorch official ResNet18 weights during build stage
+RUN python -c "import torchvision.models as models; \
+    model = models.resnet18(weights=models.ResNet18_Weights.DEFAULT); \
+    print('ResNet18 official weights downloaded successfully')"
+
+# Create placeholder model file (if needed for code compatibility)
+RUN touch /opt/models/placeholder_model.pth && \
+    echo "Placeholder for pathology model (using official ResNet18)" > /opt/models/model_info.txt
+
+# Volume for SSH keys
 VOLUME ["/opt/ssh-keys"]
 
-ENV VIRTUAL_ENV=/opt/backend/.venv
-ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+# Set working directory
 WORKDIR /opt
 
-# Expose the service port
+# Expose service port
 EXPOSE 5010

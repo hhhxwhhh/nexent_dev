@@ -38,8 +38,7 @@ services:
       - "9210:9200"  # HTTP API
       - "9310:9300"  # Cluster communication port
     networks:
-      nexent:
-        ipv4_address: 172.18.0.5
+      - nexent
     restart: always
     healthcheck:
       test: ["CMD-SHELL", "curl -sf -u elastic:${ELASTIC_PASSWORD} http://localhost:9200/_cluster/health | grep -qE '\"status\":\"(green|yellow)\"' || exit 1"]
@@ -73,8 +72,7 @@ services:
         max-size: "100m"  # Maximum size of a single log file
         max-file: "3"     # Maximum number of log files to keep
     networks:
-      nexent:
-        ipv4_address: 172.18.0.3
+      - nexent
 
   nexent-config:
     image: ${NEXENT_IMAGE}
@@ -101,7 +99,7 @@ services:
         max-size: "10m"  # Maximum size of a single log file
         max-file: "3"    # Maximum number of log files to keep
     networks:
-      nexent:
+      - nexent:
         ipv4_address: 172.18.0.10
     entrypoint: ["/bin/bash", "-c", "python backend/config_service.py"]
 
@@ -130,7 +128,7 @@ services:
         max-size: "10m"  # Maximum size of a single log file
         max-file: "3"    # Maximum number of log files to keep
     networks:
-      nexent:
+      - nexent:
         ipv4_address: 172.18.0.7
     entrypoint: ["/bin/bash", "-c", "python backend/runtime_service.py"]
 
@@ -159,8 +157,7 @@ services:
         max-size: "10m"  # Maximum size of a single log file
         max-file: "3"    # Maximum number of log files to keep
     networks:
-      nexent:
-        ipv4_address: 172.18.0.9
+      - nexent
     entrypoint: ["/bin/bash", "-c", "python backend/mcp_service.py"]
 
   nexent-northbound:
@@ -188,8 +185,7 @@ services:
         max-size: "10m"  # Maximum size of a single log file
         max-file: "3"    # Maximum number of log files to keep
     networks:
-      nexent:
-        ipv4_address: 172.18.0.8
+      - nexent
     entrypoint: ["/bin/bash", "-c", "python backend/northbound_service.py"]
 
   nexent-web:
@@ -197,15 +193,15 @@ services:
     container_name: nexent-web
     restart: always
     networks:
-      nexent:
+      - nexent:
         ipv4_address: 172.18.0.2
     ports:
       - "3000:3000"
     environment:
-      - HTTP_BACKEND=http://172.18.0.10:5010
-      - WS_BACKEND=ws://172.18.0.7:5014
-      - RUNTIME_HTTP_BACKEND=http://172.18.0.7:5014
-      - MINIO_ENDPOINT=http://172.18.0.6:9000
+      - HTTP_BACKEND=http://nexent-config:5010
+      - WS_BACKEND=ws://nexent-runtime:5014
+      - RUNTIME_HTTP_BACKEND=http://nexent-runtime:5014
+      - MINIO_ENDPOINT=http://nexent-minio:9000
     logging:
       driver: "json-file"
       options:
@@ -237,8 +233,7 @@ services:
       nexent-elasticsearch:
         condition: service_healthy
     networks:
-      nexent:
-        ipv4_address: 172.18.0.11
+      - nexent
     entrypoint: >
       /bin/sh -c "
         python /opt/backend/data_process_service.py || (cd /opt/backend && OPENBLAS_NUM_THREADS=1 UVICORN_LOOP=asyncio uvicorn data_process_service:app --host 0.0.0.0 --port 5012)
@@ -265,8 +260,7 @@ services:
       retries: 5
     restart: always
     networks:
-      nexent:
-        ipv4_address: 172.18.0.4
+      - nexent
 
   nexent-minio:
     image: ${MINIO_IMAGE}
@@ -282,7 +276,7 @@ services:
     volumes:
       - ${ROOT_DIR}/minio/data:/etc/minio/data
     networks:
-      nexent:
+      - nexent:
         ipv4_address: 172.18.0.6
     restart: always
     logging:
@@ -315,8 +309,7 @@ services:
     volumes:
       - ${TERMINAL_MOUNT_DIR:-./workspace}:/opt/terminal
     networks:
-      nexent:
-        ipv4_address: 172.18.0.12
+      - nexent
     restart: always
     logging:
       driver: "json-file"
@@ -329,10 +322,6 @@ services:
 networks:
   nexent:
     driver: bridge
-    ipam:
-      config:
-        - subnet: 172.18.0.0/16
-          gateway: 172.18.0.1
 
 volumes:
   redis_data:
