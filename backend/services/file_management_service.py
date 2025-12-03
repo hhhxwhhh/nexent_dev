@@ -221,7 +221,7 @@ async def process_image_file(query: str, filename: str, file_content: bytes, ten
     messages = get_file_processing_messages_template(language)
     
     try:
-        from utils.file_management_utils import convert_image_to_text
+        from utils.attachment_utils import convert_image_to_text
         image_stream = BytesIO(file_content)
         text = convert_image_to_text(query, image_stream, tenant_id, language)
         return messages["IMAGE_CONTENT_SUCCESS"].format(filename=filename, content=text)

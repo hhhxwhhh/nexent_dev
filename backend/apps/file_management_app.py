@@ -282,8 +282,8 @@ async def get_storage_file_batch_urls(
         "results": results
     }
 
-
 @file_management_runtime_router.post("/preprocess")
+@file_management_config_router.post("/preprocess")
 async def agent_preprocess_api(
         request: Request, 
         query: str = Form(...),
