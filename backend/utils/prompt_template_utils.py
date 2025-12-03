@@ -76,7 +76,15 @@ def get_prompt_template(template_type: str, language: str = LANGUAGE["ZH"], **kw
         'cluster_summary_agent': {
             LANGUAGE["ZH"]: 'backend/prompts/cluster_summary_agent.yaml',
             LANGUAGE["EN"]: 'backend/prompts/cluster_summary_agent.yaml'
-        }
+        },
+        'pathology_expert': {
+            LANGUAGE["ZH"]: 'backend/prompts/pathology_expert_agent.yaml',
+            LANGUAGE["EN"]: 'backend/prompts/pathology_expert_agent.yaml'
+        },
+        'pathology_document_analysis': {
+            LANGUAGE["ZH"]: 'backend/prompts/pathology_document_analysis.yaml',
+            LANGUAGE["EN"]: 'backend/prompts/pathology_document_analysis.yaml'
+        },
     }
 
     if template_type not in template_paths:
