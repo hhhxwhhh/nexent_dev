@@ -23,6 +23,10 @@ def convert_image_to_text(query: str, image_input: Union[str, BinaryIO], tenant_
     Returns:
         str: Image description text
     """
+    # 检查是否是病理学相关内容
+    is_pathology_related = any(keyword in query.lower() for keyword in 
+                              ['病理', '组织', '细胞', '肿瘤', '癌症', '病变', '切片'])
+    
     vlm_model_config = tenant_config_manager.get_model_config(
         key=MODEL_CONFIG_MAPPING["vlm"], tenant_id=tenant_id)
     image_to_text_model = OpenAIVLModel(
@@ -37,8 +41,15 @@ def convert_image_to_text(query: str, image_input: Union[str, BinaryIO], tenant_
         max_tokens=512
     )
 
-    # Load prompts from yaml file
-    prompts = get_analyze_file_prompt_template(language)
+    # 根据内容类型选择合适的模板
+    if is_pathology_related:
+        # 使用病理学专用模板
+        from utils.prompt_template_utils import get_prompt_template
+        prompts = get_prompt_template('pathology_document_analysis', language)
+    else:
+        # 使用通用模板
+        prompts = get_analyze_file_prompt_template(language)
+        
     system_prompt = Template(prompts['image_analysis']['system_prompt'],
                              undefined=StrictUndefined).render({'query': query})
 
@@ -51,13 +62,17 @@ def convert_long_text_to_text(query: str, file_context: str, tenant_id: str, lan
 
     Args:
         query: User's question
-        file_context: Long text content to analyze
+        file_context: Text content to be analyzed
         tenant_id: Tenant ID for model configuration
         language: Language code ('zh' for Chinese, 'en' for English)
 
     Returns:
-        tuple[str, str]: Summarized text description and truncation percentage string
+        tuple[str, Optional[float]]: Summarized text and truncation percentage (if any)
     """
+    # 检查是否是病理学相关内容
+    is_pathology_related = any(keyword in query.lower() for keyword in 
+                              ['病理', '组织', '细胞', '肿瘤', '癌症', '病变', '切片'])
+    
     main_model_config = tenant_config_manager.get_model_config(
         key=MODEL_CONFIG_MAPPING["llm"], tenant_id=tenant_id)
     long_text_to_text_model = OpenAILongContextModel(
@@ -68,8 +83,15 @@ def convert_long_text_to_text(query: str, file_context: str, tenant_id: str, lan
         max_context_tokens=main_model_config.get("max_tokens")
     )
 
-    # Load prompts from yaml file
-    prompts = get_analyze_file_prompt_template(language)
+    # 根据内容类型选择合适的模板
+    if is_pathology_related:
+        # 使用病理学专用模板
+        from utils.prompt_template_utils import get_prompt_template
+        prompts = get_prompt_template('pathology_document_analysis', language)
+    else:
+        # 使用通用模板
+        prompts = get_analyze_file_prompt_template(language)
+        
     system_prompt = Template(prompts['long_text_analysis']['system_prompt'],
                              undefined=StrictUndefined).render({'query': query})
     user_prompt = Template(
