@@ -100,67 +100,67 @@ app.prepare().then(() => {
         }
       });
     } else if (pathname.startsWith('/api/')) {
-  // Explicitly route specific endpoints to appropriate services
-  console.log(`[Proxy] Processing API request: ${req.method} ${req.url}`);
-  console.log(`[Proxy] Pathname: ${pathname}`);
-  console.log(`[Proxy] Request method: ${req.method}`);
-  
-  const isAgentRun = pathname.startsWith('/api/agent/run');
-  const isAgentStop = pathname.startsWith('/api/agent/stop');
-  const isConversation = pathname.startsWith('/api/conversation/');
-  const isMemory = pathname.startsWith('/api/memory/');
-  const isFilePreprocess = pathname.startsWith('/api/file/preprocess');
-  const isFileStoragePost = (pathname.startsWith('/api/file/storage') && req.method === 'POST');
-  
-  console.log(`[Proxy] Route checks:`);
-  console.log(`[Proxy]   isAgentRun: ${isAgentRun}`);
-  console.log(`[Proxy]   isAgentStop: ${isAgentStop}`);
-  console.log(`[Proxy]   isConversation: ${isConversation}`);
-  console.log(`[Proxy]   isMemory: ${isMemory}`);
-  console.log(`[Proxy]   isFilePreprocess: ${isFilePreprocess}`);
-  console.log(`[Proxy]   isFileStoragePost: ${isFileStoragePost} (pathname.startsWith('/api/file/storage'): ${pathname.startsWith('/api/file/storage')})`);
-  
-  const routeToRuntime = (
-    isAgentRun ||
-    isAgentStop ||
-    isConversation ||
-    isMemory ||
-    isFilePreprocess ||
-    isFileStoragePost
-  );
-  
-  console.log(`[Proxy] Should route to runtime: ${routeToRuntime}`);
-  
-  if (routeToRuntime) {
-    // Route to runtime backend
-    console.log(`[Proxy] Routing API request to Runtime Service: ${RUNTIME_HTTP_BACKEND}`);
-    proxy.web(req, res, { target: RUNTIME_HTTP_BACKEND, changeOrigin: true }, (err) => {
-      console.error('[Proxy] Runtime Service Proxy Error:', err.message);
-      if (!res.headersSent) {
-        res.writeHead(502, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ 
-          error: 'Bad Gateway', 
-          message: 'Unable to reach runtime service (' + err.message + ')',
-          code: 'RUNTIME_SERVICE_UNAVAILABLE'
-        }));
+      // Explicitly route specific endpoints to appropriate services
+      console.log(`[Proxy] Processing API request: ${req.method} ${req.url}`);
+      console.log(`[Proxy] Pathname: ${pathname}`);
+      console.log(`[Proxy] Request method: ${req.method}`);
+      
+      const isAgentRun = pathname.startsWith('/api/agent/run');
+      const isAgentStop = pathname.startsWith('/api/agent/stop');
+      const isConversation = pathname.startsWith('/api/conversation/');
+      const isMemory = pathname.startsWith('/api/memory/');
+      const isFilePreprocess = pathname.startsWith('/api/file/preprocess');
+      const isFileStoragePost = (pathname.startsWith('/api/file/storage') && req.method === 'POST');
+      
+      console.log(`[Proxy] Route checks:`);
+      console.log(`[Proxy]   isAgentRun: ${isAgentRun}`);
+      console.log(`[Proxy]   isAgentStop: ${isAgentStop}`);
+      console.log(`[Proxy]   isConversation: ${isConversation}`);
+      console.log(`[Proxy]   isMemory: ${isMemory}`);
+      console.log(`[Proxy]   isFilePreprocess: ${isFilePreprocess}`);
+      console.log(`[Proxy]   isFileStoragePost: ${isFileStoragePost} (pathname.startsWith('/api/file/storage'): ${pathname.startsWith('/api/file/storage')})`);
+      
+      const routeToRuntime = (
+        isAgentRun ||
+        isAgentStop ||
+        isConversation ||
+        isMemory ||
+        isFilePreprocess ||
+        isFileStoragePost
+      );
+      
+      console.log(`[Proxy] Should route to runtime: ${routeToRuntime}`);
+      
+      if (routeToRuntime) {
+        // Route to runtime backend
+        console.log(`[Proxy] Routing API request to Runtime Service: ${RUNTIME_HTTP_BACKEND}`);
+        proxy.web(req, res, { target: RUNTIME_HTTP_BACKEND, changeOrigin: true }, (err) => {
+          console.error('[Proxy] Runtime Service Proxy Error:', err.message);
+          if (!res.headersSent) {
+            res.writeHead(502, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ 
+              error: 'Bad Gateway', 
+              message: 'Unable to reach runtime service (' + err.message + ')',
+              code: 'RUNTIME_SERVICE_UNAVAILABLE'
+            }));
+          }
+        });
+      } else {
+        // Route to config backend
+        console.log(`[Proxy] Routing API request to Config Service: ${HTTP_BACKEND}`);
+        proxy.web(req, res, { target: HTTP_BACKEND, changeOrigin: true }, (err) => {
+          console.error('[Proxy] Config Service Proxy Error:', err.message);
+          if (!res.headersSent) {
+            res.writeHead(502, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ 
+              error: 'Bad Gateway', 
+              message: 'Unable to reach config service (' + err.message + ')',
+              code: 'CONFIG_SERVICE_UNAVAILABLE'
+            }));
+          }
+        });
       }
-    });
-  } else {
-    // Route to config backend
-    console.log(`[Proxy] Routing API request to Config Service: ${HTTP_BACKEND}`);
-    proxy.web(req, res, { target: HTTP_BACKEND, changeOrigin: true }, (err) => {
-      console.error('[Proxy] Config Service Proxy Error:', err.message);
-      if (!res.headersSent) {
-        res.writeHead(502, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ 
-          error: 'Bad Gateway', 
-          message: 'Unable to reach config service (' + err.message + ')',
-          code: 'CONFIG_SERVICE_UNAVAILABLE'
-        }));
-      }
-    });
-  }
-} else {
+    } else {
       // Let Next.js handle all other requests
       console.log(`[Proxy] Routing to Next.js`);
       handle(req, res, parsedUrl);

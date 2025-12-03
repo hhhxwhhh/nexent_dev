@@ -102,6 +102,8 @@ async def process_files(
     )
 
 
+# 添加到两个router以确保无论路由到哪个服务都能处理
+@file_management_config_router.post("/storage")
 @file_management_runtime_router.post("/storage")
 async def storage_upload_files(
     files: List[UploadFile] = File(..., description="List of files to upload"),
@@ -116,6 +118,13 @@ async def storage_upload_files(
 
     Returns upload results including file information and access URLs
     """
+    # 处理空文件列表的情况
+    if not files:
+        raise HTTPException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            detail="No files provided for upload"
+        )
+    
     results = await upload_to_minio(files=files, folder=folder)
 
     # Return upload results for all files
