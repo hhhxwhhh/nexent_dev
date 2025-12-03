@@ -3,9 +3,11 @@ import os
 import uuid
 from datetime import datetime
 from typing import Any, BinaryIO, Dict, List, Optional
+import logging
 
 from .client import minio_client
 
+logger = logging.getLogger(__name__)
 
 def generate_object_name(file_name: str, prefix: str = "attachments") -> str:
     """
@@ -229,16 +231,21 @@ def get_file_stream(object_name: str, bucket: Optional[str] = None) -> Optional[
     Returns:
         Optional[BinaryIO]: Standard BinaryIO stream object, or None if failed
     """
+    logger.debug(f"Getting file stream for object: {object_name}")
     success, result = minio_client.get_file_stream(object_name, bucket)
     if not success:
+        logger.error(f"Failed to get file stream for {object_name}: {result}")
         return None
 
     # Read all data from StreamingBody and wrap it in BytesIO for BinaryIO compatibility
     try:
+        logger.debug(f"Reading data from stream for {object_name}")
         binary_data = result.read()
         result.close()  # Close the original stream
+        logger.debug(f"Successfully read {len(binary_data)} bytes for {object_name}")
         return io.BytesIO(binary_data)
-    except Exception:
+    except Exception as e:
+        logger.error(f"Failed to read data from stream for {object_name}: {str(e)}")
         return None
 
 

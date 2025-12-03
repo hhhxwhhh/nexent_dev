@@ -1,8 +1,8 @@
 x-es-vars: &es-vars
   ELASTIC_PASSWORD: ${ELASTIC_PASSWORD}
 x-minio-vars: &minio-vars
-  MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
-  MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+  MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+  MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
   MINIO_REGION: ${MINIO_REGION}
   MINIO_DEFAULT_BUCKET: ${MINIO_DEFAULT_BUCKET}
 x-proxy-vars: &proxy-vars
@@ -296,8 +296,6 @@ services:
         MINIO_PID=$$!
         sleep 3
         mc alias set myadmin http://localhost:9000 $MINIO_ROOT_USER $MINIO_ROOT_PASSWORD
-        mc admin user add myadmin $MINIO_ACCESS_KEY $MINIO_SECRET_KEY
-        mc admin policy attach myadmin readwrite --user=$MINIO_ACCESS_KEY
         mc mb myadmin/$MINIO_DEFAULT_BUCKET
         mc anonymous set download myadmin/$MINIO_DEFAULT_BUCKET
         wait $$MINIO_PID

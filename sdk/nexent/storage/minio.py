@@ -61,16 +61,26 @@ class MinIOStorageClient(StorageClient):
             use_ssl=self.secure,
             config=Config(
                 signature_version='s3v4',
-                proxies={
-                    'http': None,
-                    'https': None
-                }
+                retries={'max_attempts': 3, 'mode': 'adaptive'},
+                connect_timeout=10,
+                read_timeout=30
             )
         )
 
         # Ensure default bucket exists if provided
         if self.default_bucket:
             self._ensure_bucket_exists(self.default_bucket)
+            
+        self._test_connection()
+        
+    def _test_connection(self):
+        """Test connection to MinIO server"""
+        try:
+            self.client.list_buckets()
+            logger.info("Successfully connected to MinIO server")
+        except Exception as e:
+            logger.error(f"Failed to connect to MinIO server: {e}")
+            raise
 
     def _ensure_bucket_exists(self, bucket_name: str) -> None:
         """
@@ -247,21 +257,24 @@ class MinIOStorageClient(StorageClient):
             return False, "Bucket name is required"
 
         try:
+            logger.debug(f"Attempting to get file stream for {object_name} from bucket {bucket}")
             response = self.client.get_object(Bucket=bucket, Key=object_name)
+            logger.debug(f"Successfully got file stream for {object_name}")
             return True, response['Body']
         except ClientError as e:
             error_code = e.response.get('Error', {}).get('Code', '')
-            if error_code == '404':
-                # File not found is a normal business scenario, log at debug level
+            error_message = e.response.get('Error', {}).get('Message', str(e))
+            if error_code == 'NoSuchKey':
                 logger.debug(f"File not found when getting stream: {object_name}")
                 return False, f"File not found: {object_name}"
+            elif error_code == 'AccessDenied':
+                logger.error(f"Access denied when getting file stream for {object_name}: {error_message}")
+                return False, f"Access denied: {error_message}"
             else:
-                # Other errors (permission, network, etc.) should be logged as errors
-                error_msg = f"Failed to get file stream for {object_name}: {e}"
-                logger.error(error_msg)
-                return False, error_msg
+                logger.error(f"Failed to get file stream for {object_name}: {error_code} - {error_message}")
+                return False, f"Failed to get file: {error_code} - {error_message}"
         except Exception as e:
-            error_msg = f"Unexpected error getting file stream for {object_name}: {e}"
+            error_msg = f"Unexpected error getting file stream for {object_name}: {str(e)}"
             logger.error(error_msg)
             return False, error_msg
 
