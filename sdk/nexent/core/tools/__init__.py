@@ -15,7 +15,8 @@ from .terminal_tool import TerminalTool
 from .analyze_text_file_tool import AnalyzeTextFileTool
 from .analyze_image_tool import AnalyzeImageTool
 from .knowledge_base_extension_tool import KnowledgeBaseExtensionTool
-
+from .get_current_time_tool import GetCurrentTimeTool
+from .pathology_image_analysis_tool import PathologyImageAnalysisTool
 __all__ = [
     "ExaSearchTool", 
     "KnowledgeBaseSearchTool", 
@@ -33,5 +34,7 @@ __all__ = [
     "TerminalTool",
     "AnalyzeTextFileTool",
     "AnalyzeImageTool",
-    "KnowledgeBaseExtensionTool"
+    "KnowledgeBaseExtensionTool",
+    "GetCurrentTimeTool",
+    "PathologyImageAnalysisTool"
 ]
