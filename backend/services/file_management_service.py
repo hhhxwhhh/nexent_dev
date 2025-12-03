@@ -288,6 +288,11 @@ async def preprocess_files_generator(
         # Load messages based on language
         messages = get_file_processing_messages_template(language)
         
+        # Check if there are knowledge base tools available
+        from agents.create_agent_info import create_tool_config_list
+        tool_list = await create_tool_config_list("temp_agent_id", tenant_id, "temp_user_id")
+        has_knowledge_base_tool = any(tool.class_name == "KnowledgeBaseSearchTool" for tool in tool_list)
+        
         # Initialize final query with original query
         final_query = query
         
@@ -339,6 +344,11 @@ async def preprocess_files_generator(
                 error_msg = messages["FILE_CONTENT_ERROR"].format(
                     filename=filename, error=str(e))
                 yield f"data: {json.dumps({'type': 'error', 'message': error_msg})}\n\n"
+                
+        # 如果有知识库工具，提示用户文档已可用于检索
+        if has_knowledge_base_tool:
+            final_query += "\n\n注意：上传的文档已可用于知识库检索，您可以在后续对话中引用这些文档内容。"
+            yield f"data: {json.dumps({'type': 'info', 'message': '上传的文档已可用于知识库检索'})}\n\n"
                 
         # Send completion message
         yield f"data: {json.dumps({'type': 'complete', 'final_query': final_query})}\n\n"

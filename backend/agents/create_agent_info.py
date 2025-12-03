@@ -176,6 +176,17 @@ async def create_agent_config(
         })
     else:
         system_prompt = agent_info.get("prompt", "")
+        
+    if knowledge_base_summary:
+        system_prompt += "\n\n### 知识库引用规范\n"
+        system_prompt += "在回答中引用知识库内容时，请遵循以下规范：\n"
+        system_prompt += "1. 引用标记格式必须严格为：`[[字母+数字]]`，例如：`[[a1]]`、`[[b2]]`、`[[c3]]`\n"
+        system_prompt += "2. 字母部分必须是单个小写字母（a-e），数字部分必须是整数\n"
+        system_prompt += "3. 引用标记的字母和数字必须与检索工具的检索结果一一对应\n"
+        system_prompt += "4. 引用标记应紧跟在相关信息或句子之后，通常放在句末或段落末尾\n"
+        system_prompt += "5. 多个引用标记可以连续使用，例如：`[[a1]][[b2]]`\n"
+        system_prompt += "6. **重要**：仅添加引用标记，不要添加链接、参考文献列表等多余内容\n"
+        system_prompt += "7. 如果检索结果中没有匹配的引用，则不显示该引用标记\n"
 
     if agent_info.get("model_id") is not None:
         model_info = get_model_by_model_id(agent_info.get("model_id"))

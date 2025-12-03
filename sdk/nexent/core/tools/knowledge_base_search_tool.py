@@ -139,8 +139,24 @@ class KnowledgeBaseSearchTool(Tool):
         if self.observer:
             search_results_data = json.dumps(search_results_json, ensure_ascii=False)
             self.observer.add_message("", ProcessType.SEARCH_CONTENT, search_results_data)
-        return json.dumps(search_results_return, ensure_ascii=False)
-
+        formatted_results = []
+        for i, result in enumerate(search_results_return):
+            # 生成引用标记，格式为[[字母+数字]]，例如[[a1]], [[b2]]
+            alphabet = chr(ord('a') + (self.record_ops - len(search_results_return) + i) // 10)
+            number = (self.record_ops - len(search_results_return) + i) % 10 + 1
+            citation_mark = f"[[{alphabet}{number}]]"
+            
+            # 在结果中添加引用标记
+            formatted_result = {
+                "content": result["text"],
+                "title": result["title"],
+                "url": result["url"],
+                "citation_mark": citation_mark,
+                "score": result["score"]
+            }
+            formatted_results.append(formatted_result)
+            
+        return json.dumps(formatted_results, ensure_ascii=False)
     def search_hybrid(self, query, index_names):
         try:
             results = self.vdb_core.hybrid_search(

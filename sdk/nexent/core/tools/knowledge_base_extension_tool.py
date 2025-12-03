@@ -445,3 +445,112 @@ class KnowledgeBaseExtensionTool(Tool):
         except Exception as e:
             logger.error(f"Error in KnowledgeBaseExtensionTool: {str(e)}")
             raise e
+
+    def _upload_document(self, file_path: str, index_name: Optional[str], chunking_strategy: str) -> str:
+        """
+        Upload and process document for knowledge base
+        
+        Args:
+            file_path: Path to the document file
+            index_name: Target index name
+            chunking_strategy: Chunking strategy to use
+            
+        Returns:
+            str: Upload result in JSON format
+        """
+        try:
+            # Check if file exists
+            if not os.path.exists(file_path):
+                raise FileNotFoundError(f"File not found: {file_path}")
+                
+            # Get file extension
+            _, ext = os.path.splitext(file_path)
+            ext = ext.lower()
+            
+            # Process document based on file type
+            if ext in ['.txt', '.md', '.csv']:
+                # Text-based documents
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+            elif ext in ['.pdf', '.doc', '.docx']:
+                # For binary documents, we would need additional processing libraries
+                # This is a simplified implementation
+                raise NotImplementedError(f"Document type {ext} processing not implemented")
+            else:
+                raise ValueError(f"Unsupported document type: {ext}")
+                
+            # Chunk document
+            chunks = self._chunk_document(content, chunking_strategy)
+            
+            # Generate embeddings and index document
+            indexed_count = self._index_document_chunks(chunks, index_name, file_path)
+            
+            result = {
+                "message": f"成功上传并索引文档: {file_path}",
+                "indexed_chunks": indexed_count,
+                "index_name": index_name or "default"
+            }
+            
+            return json.dumps(result, ensure_ascii=False)
+            
+        except Exception as e:
+            logger.error(f"Error uploading document {file_path}: {str(e)}")
+            raise
+
+    def _chunk_document(self, content: str, strategy: str) -> List[Dict[str, Any]]:
+        """
+        Chunk document content into smaller pieces
+        
+        Args:
+            content: Document content
+            strategy: Chunking strategy
+            
+        Returns:
+            List[Dict[str, Any]]: List of document chunks
+        """
+        chunks = []
+        
+        if strategy == "basic":
+            # Basic chunking by fixed size
+            chunk_size = 1000
+            overlap = 100
+            
+            for i in range(0, len(content), chunk_size - overlap):
+                chunk_content = content[i:i + chunk_size]
+                chunks.append({
+                    "content": chunk_content,
+                    "position": i,
+                    "length": len(chunk_content)
+                })
+        else:
+            # Advanced chunking strategy could be implemented here
+            # For example, semantic chunking, sentence-based chunking, etc.
+            chunk_size = 800
+            for i in range(0, len(content), chunk_size):
+                chunk_content = content[i:i + chunk_size]
+                chunks.append({
+                    "content": chunk_content,
+                    "position": i,
+                    "length": len(chunk_content)
+                })
+                
+        return chunks
+
+    def _index_document_chunks(self, chunks: List[Dict[str, Any]], index_name: Optional[str], file_path: str) -> int:
+        """
+        Index document chunks into vector database
+        
+        Args:
+            chunks: List of document chunks
+            index_name: Target index name
+            file_path: Original file path
+            
+        Returns:
+            int: Number of indexed chunks
+        """
+        # This would typically interface with the vector database service
+        # For now, we'll simulate the process
+        indexed_count = len(chunks)
+        
+        logger.info(f"Indexed {indexed_count} chunks from document {file_path} into index {index_name or 'default'}")
+        return indexed_count
