@@ -202,15 +202,15 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - HTTP_BACKEND=http://172.18.0.10:5010
-      - WS_BACKEND=ws://172.18.0.7:5014
-      - RUNTIME_HTTP_BACKEND=http://172.18.0.7:5014
-      - MINIO_ENDPOINT=http://172.18.0.6:9000
+      - HTTP_BACKEND=http://nexent-config:5010
+      - WS_BACKEND=ws://nexent-runtime:5014
+      - RUNTIME_HTTP_BACKEND=http://nexent-runtime:5014
+      - MINIO_ENDPOINT=http://nexent-minio:9000
     logging:
       driver: "json-file"
       options:
-        max-size: "10m"  # Maximum size of a single log file
-        max-file: "3"    # Maximum number of log files to keep
+        max-size: "10m"
+        max-file: "3"
 
   nexent-data-process:
     image: ${NEXENT_DATA_PROCESS_IMAGE}
