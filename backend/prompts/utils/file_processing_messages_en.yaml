@@ -3,3 +3,6 @@ FILE_CONTENT_ERROR: "File {filename} content: Error processing text file {filena
 FILE_PROCESSING_ERROR: "File processing failed (status code: {status_code}): {error_detail}"
 IMAGE_CONTENT_SUCCESS: "Image file {filename} content: {content}"
 IMAGE_CONTENT_ERROR: "Image file {filename} content: Error processing image file {filename}: {error}"
+CONTENT_TRUNCATED_WARNING: "Note: File content has been truncated due to length limits ({percentage}% of content retained)"
+UNSUPPORTED_FILE_TYPE: "Unsupported file type: {filename}"
+PREPROCESSING_ERROR: "Error during preprocessing: {error}"

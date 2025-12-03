@@ -82,12 +82,7 @@ export const preprocessAttachments = async (
     return { finalQuery: content, success: true };
   }
 
-  // Skip preprocessing API call - return original content directly
-  // If you want to re-enable preprocessing, uncomment the code below
-  return { finalQuery: content, success: true };
-
-  /* 
-  // Original preprocessing code (disabled)
+  // Enable preprocessing API call
   try {
     // Call file preprocessing interface
     const preProcessReader = await conversationService.preprocessFiles(
@@ -158,7 +153,6 @@ export const preprocessAttachments = async (
       error: error instanceof Error ? (error as Error).message : String(error),
     };
   }
-  */
 };
 
 /**

@@ -17,6 +17,17 @@ RUN if [ "$APT_MIRROR" = "tsinghua" ]; then \
     fi && \
     apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
+# Install system dependencies required by OpenCV
+RUN apt-get update && apt-get install -y \
+    libgl1 \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libgomp1 \
+    libgtk-3-0 \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN pip install --no-cache-dir uv $(test -n "$MIRROR" && echo "-i $MIRROR")
 WORKDIR /opt/backend
 
@@ -26,10 +37,13 @@ RUN uv sync --no-cache-dir $(test -n "$MIRROR" && echo "-i $MIRROR") && \
     uv cache clean
 # Layer 1: install sdk in link mode
 COPY sdk /opt/sdk
-RUN uv pip install --no-cache-dir /opt/sdk $(test -n "$MIRROR" && echo "-i $MIRROR") && \
-    uv cache clean
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install /opt/sdk $(test -n "$MIRROR" && echo "-i $MIRROR")
 # Layer 2: copy backend code
 COPY backend /opt/backend
+
+# Copy the stopwords file to the expected location in Docker
+COPY baidu_stopwords.txt /opt/baidu_stopwords.txt
 
 # Create SSH key directory for Terminal tool
 RUN mkdir -p /opt/ssh-keys

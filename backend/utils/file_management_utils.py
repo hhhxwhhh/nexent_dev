@@ -14,6 +14,7 @@ from consts.model import ProcessParams
 from database.attachment_db import get_file_size_from_minio
 from utils.auth_utils import get_current_user_id
 from utils.config_utils import tenant_config_manager
+from utils.prompt_template_utils import get_file_processing_messages_template
 
 logger = logging.getLogger("file_management_utils")
 
@@ -211,8 +212,8 @@ async def get_all_files_status(index_name: str):
 async def _convert_to_custom_state(process_celery_state: str, forward_celery_state: str) -> str:
     """Delegates Celery-state conversion to the data-process service.
 
-    This removes the direct dependency on the *celery* package for callers of
-    `file_management_utils`.
+    This removes the direct dependency on the celery package for callers of 
+    file_management_utils.
     """
     try:
         payload = {
@@ -289,4 +290,3 @@ def get_file_size(source_type: str, path_or_url: str) -> int:
     except Exception as e:
         logging.error(f"Error getting file size for {path_or_url}: {str(e)}")
         return 0
-

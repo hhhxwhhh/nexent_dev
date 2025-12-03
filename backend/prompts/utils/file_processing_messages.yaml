@@ -3,3 +3,6 @@ FILE_CONTENT_ERROR: "文件 {filename} 内容: 处理文本文件 {filename} 时
 FILE_PROCESSING_ERROR: "文件处理失败 (状态码: {status_code}): {error_detail}"
 IMAGE_CONTENT_SUCCESS: "图片文件 {filename} 内容: {content}"
 IMAGE_CONTENT_ERROR: "图片文件 {filename} 内容: 处理图片文件 {filename} 时出错: {error}"
+CONTENT_TRUNCATED_WARNING: "注意: 文件内容因长度限制被截断 ({percentage}% 内容被保留)"
+UNSUPPORTED_FILE_TYPE: "不支持的文件类型: {filename}"
+PREPROCESSING_ERROR: "文件预处理过程中发生错误: {error}"

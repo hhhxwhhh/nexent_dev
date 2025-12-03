@@ -3,11 +3,13 @@ import logging
 import os
 from io import BytesIO
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, AsyncGenerator
+import json
+import uuid
 
 from fastapi import UploadFile
 
-from consts.const import UPLOAD_FOLDER, MAX_CONCURRENT_UPLOADS, MODEL_CONFIG_MAPPING
+from consts.const import UPLOAD_FOLDER, MAX_CONCURRENT_UPLOADS, MODEL_CONFIG_MAPPING, LANGUAGE
 from database.attachment_db import (
     upload_fileobj,
     get_file_url,
@@ -18,7 +20,8 @@ from database.attachment_db import (
 )
 from services.vectordatabase_service import ElasticSearchService, get_vector_db_core
 from utils.config_utils import tenant_config_manager, get_model_name_from_config
-from utils.file_management_utils import save_upload_file
+from utils.file_management_utils import save_upload_file, get_file_processing_messages_template
+from utils.prompt_template_utils import get_file_processing_messages_template
 
 from nexent import MessageObserver
 from nexent.core.models import OpenAILongContextModel
@@ -29,6 +32,20 @@ upload_dir.mkdir(exist_ok=True)
 upload_semaphore = asyncio.Semaphore(MAX_CONCURRENT_UPLOADS)
 
 logger = logging.getLogger("file_management_service")
+
+# Simple preprocess task manager
+class PreprocessManager:
+    def __init__(self):
+        self.tasks = {}
+    
+    def register_preprocess_task(self, task_id: str, conversation_id: int, task):
+        self.tasks[task_id] = {
+            "conversation_id": conversation_id,
+            "task": task
+        }
+
+# Global instance
+preprocess_manager = PreprocessManager()
 
 
 async def upload_files_impl(destination: str, file: List[UploadFile], folder: str = None, index_name: Optional[str] = None) -> tuple:
@@ -195,3 +212,142 @@ def get_llm_model(tenant_id: str):
         max_context_tokens=main_model_config.get("max_tokens")
     )
     return long_text_to_text_model
+
+async def process_image_file(query: str, filename: str, file_content: bytes, tenant_id: str, language: str = LANGUAGE["ZH"]) -> str:
+    """
+    Process image file, convert to text using external API
+    """
+    # Load messages based on language
+    messages = get_file_processing_messages_template(language)
+    
+    try:
+        from utils.file_management_utils import convert_image_to_text
+        image_stream = BytesIO(file_content)
+        text = convert_image_to_text(query, image_stream, tenant_id, language)
+        return messages["IMAGE_CONTENT_SUCCESS"].format(filename=filename, content=text)
+    except Exception as e:
+        return messages["IMAGE_CONTENT_ERROR"].format(filename=filename, error=str(e))
+    
+async def process_text_file(query: str, filename: str, file_content: bytes, tenant_id: str, language: str = LANGUAGE["ZH"]) -> tuple[str, Optional[str]]:
+    """
+    Process text file, convert to text using external API
+    """
+    # Load messages based on language
+    messages = get_file_processing_messages_template(language)
+    
+    # file_content is byte data, need to send to API through file upload
+    from consts.const import DATA_PROCESS_SERVICE
+    data_process_service_url = DATA_PROCESS_SERVICE
+    api_url = f"{data_process_service_url}/tasks/process_text_file"
+    logger.info(f"Processing text file {filename} with API: {api_url}")
+
+    try:
+        # Upload byte data as a file
+        from utils.file_management_utils import process_text_file as util_process_text_file
+        files = {
+            'file': (filename, file_content, 'application/octet-stream')
+        }
+        data = {
+            'chunking_strategy': 'basic',
+            'timeout': 60
+        }
+        
+        result = await util_process_text_file(api_url, files, data)
+        return result.get("response_text", ""), result.get("truncation_percentage")
+    except Exception as e:
+        logger.error(f"Text file processing error for {filename}: {str(e)}")
+        return messages["FILE_CONTENT_ERROR"].format(filename=filename, error=str(e)), None
+
+
+async def preprocess_files_generator(
+    query: str,
+    file_cache: List[dict],
+    tenant_id: str,
+    language: str,
+    task_id: str,
+    conversation_id: int
+) -> AsyncGenerator[str, None]:
+    """
+    Generate streaming response for file preprocessing
+
+    Args:
+        query: User query
+        file_cache: List of cached file data
+        tenant_id: Tenant ID
+        language: Language code
+        task_id: Unique task ID
+        conversation_id: Conversation ID
+
+    Yields:
+        JSON-formatted strings with preprocessing progress and results
+    """
+    try:
+        # Register task
+        preprocess_manager.register_preprocess_task(task_id, conversation_id, asyncio.current_task())
+        
+        # Load messages based on language
+        messages = get_file_processing_messages_template(language)
+        
+        # Initialize final query with original query
+        final_query = query
+        
+        # Process each file
+        for file_info in file_cache:
+            # Check if task was cancelled
+            if asyncio.current_task() and asyncio.current_task().done():
+                break
+                
+            filename = file_info["filename"]
+            ext = file_info["ext"]
+            
+            # Handle file errors
+            if "error" in file_info:
+                error_msg = messages["FILE_CONTENT_ERROR"].format(
+                    filename=filename, error=file_info["error"])
+                yield f"data: {json.dumps({'type': 'error', 'message': error_msg})}\n\n"
+                continue
+                
+            file_content = file_info["content"]
+            
+            try:
+                # Determine file type and process accordingly
+                if ext in [".txt", ".md", ".csv", ".log", ".json", ".xml"]:
+                    # Process text files
+                    text_content, truncation_percentage = await process_text_file(
+                        query, filename, file_content, tenant_id, language)
+                    
+                    # Add truncation warning if needed
+                    if truncation_percentage:
+                        text_content += f"\n\n注意: 文件内容因长度限制被截断 ({truncation_percentage}% 内容被保留)"
+                        
+                    final_query += f"\n\n{text_content}"
+                    yield f"data: {json.dumps({'type': 'file_processed', 'filename': filename, 'description': text_content})}\n\n"
+                    
+                elif ext in [".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"]:
+                    # Process image files
+                    image_description = await process_image_file(
+                        query, filename, file_content, tenant_id, language)
+                    final_query += f"\n\n{image_description}"
+                    yield f"data: {json.dumps({'type': 'file_processed', 'filename': filename, 'description': image_description})}\n\n"
+                    
+                else:
+                    # Unsupported file type
+                    unsupported_msg = f"不支持的文件类型: {filename}"
+                    yield f"data: {json.dumps({'type': 'warning', 'message': unsupported_msg})}\n\n"
+                    
+            except Exception as e:
+                error_msg = messages["FILE_CONTENT_ERROR"].format(
+                    filename=filename, error=str(e))
+                yield f"data: {json.dumps({'type': 'error', 'message': error_msg})}\n\n"
+                
+        # Send completion message
+        yield f"data: {json.dumps({'type': 'complete', 'final_query': final_query})}\n\n"
+        
+    except Exception as e:
+        logger.error(f"Error in preprocess_files_generator: {str(e)}")
+        error_msg = f"文件预处理过程中发生错误: {str(e)}"
+        yield f"data: {json.dumps({'type': 'error', 'message': error_msg})}\n\n"
+    finally:
+        # Unregister task
+        if task_id in preprocess_manager.tasks:
+            del preprocess_manager.tasks[task_id]
