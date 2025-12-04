@@ -20,6 +20,7 @@ from .pathology_image_analysis_tool import PathologyImageAnalysisTool
 from .medical_terminology_standardizer_tool import MedicalTerminologyStandardizerTool
 from .intelligent_medical_imaging_report_tool import IntelligentMedicalImagingReportTool
 from .intelligent_patient_communication_assistant_tool import IntelligentPatientCommunicationAssistantTool
+from .multimodel_qa_fusion_tool import MultimodalQAFusionTool
 __all__ = [
     "ExaSearchTool", 
     "KnowledgeBaseSearchTool", 
@@ -42,5 +43,6 @@ __all__ = [
     "PathologyImageAnalysisTool",
     "MedicalTerminologyStandardizerTool",
     "IntelligentMedicalImagingReportTool",
-    "IntelligentPatientCommunicationAssistantTool"
+    "IntelligentPatientCommunicationAssistantTool",
+    "MultimodalQAFusionTool"
 ]
