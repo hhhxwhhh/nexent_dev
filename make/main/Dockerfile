@@ -64,11 +64,6 @@ RUN mkdir -p /root/.cache/torch/hub/checkpoints \
     && chmod -R 755 /opt/models \
     && chmod -R 755 /opt/ssh-keys
 
-# Pre-download PyTorch official ResNet18 weights during build stage
-RUN python -c "import torchvision.models as models; \
-    model = models.resnet18(weights=models.ResNet18_Weights.DEFAULT); \
-    print('ResNet18 official weights downloaded successfully')"
-
 # Create placeholder model file (if needed for code compatibility)
 RUN touch /opt/models/placeholder_model.pth && \
     echo "Placeholder for pathology model (using official ResNet18)" > /opt/models/model_info.txt

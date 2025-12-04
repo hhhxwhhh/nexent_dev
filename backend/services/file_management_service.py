@@ -290,7 +290,8 @@ async def preprocess_files_generator(
         
         # Check if there are knowledge base tools available
         from agents.create_agent_info import create_tool_config_list
-        tool_list = await create_tool_config_list("temp_agent_id", tenant_id, "temp_user_id")
+        # Fix: Use a valid integer for temp_agent_id instead of string
+        tool_list = await create_tool_config_list(-1, tenant_id, "temp_user_id")
         has_knowledge_base_tool = any(tool.class_name == "KnowledgeBaseSearchTool" for tool in tool_list)
         
         # Initialize final query with original query
