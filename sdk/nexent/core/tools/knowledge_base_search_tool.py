@@ -1,6 +1,7 @@
 import json
 import logging
 from typing import List
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from pydantic import Field
 from smolagents.tools import Tool
@@ -53,12 +54,14 @@ class KnowledgeBaseSearchTool(Tool):
         observer: MessageObserver = Field(description="Message observer", default=None, exclude=True),
         embedding_model: BaseEmbedding = Field(description="The embedding model to use", default=None, exclude=True),
         vdb_core: VectorDatabaseCore = Field(description="Vector database client", default=None, exclude=True),
+        max_workers: int = Field(description="Maximum number of worker threads for parallel processing", default=4, exclude=True),
     ):
         """Initialize the KBSearchTool.
 
         Args:
             top_k (int, optional): Number of results to return. Defaults to 5.
             observer (MessageObserver, optional): Message observer instance. Defaults to None.
+            max_workers (int, optional): Maximum number of worker threads for parallel processing. Defaults to 4.
 
         Raises:
             ValueError: If language is not supported
@@ -69,10 +72,61 @@ class KnowledgeBaseSearchTool(Tool):
         self.vdb_core = vdb_core
         self.index_names = [] if index_names is None else index_names
         self.embedding_model = embedding_model
+        self.max_workers = max_workers
 
         self.record_ops = 1  # To record serial number
         self.running_prompt_zh = "知识库检索中..."
         self.running_prompt_en = "Searching the knowledge base..."
+
+    def _search_single_index(self, query: str, search_mode: str, index_name: str) -> dict:
+        """Search in a single index and return results."""
+        try:
+            if search_mode == "hybrid":
+                results = self.vdb_core.hybrid_search(
+                    index_names=[index_name], query_text=query, embedding_model=self.embedding_model, top_k=self.top_k
+                )
+            elif search_mode == "accurate":
+                results = self.vdb_core.accurate_search(index_names=[index_name], query_text=query, top_k=self.top_k)
+            elif search_mode == "semantic":
+                results = self.vdb_core.semantic_search(
+                    index_names=[index_name], query_text=query, embedding_model=self.embedding_model, top_k=self.top_k
+                )
+            else:
+                raise ValueError(f"Invalid search mode: {search_mode}")
+
+            # Format results
+            formatted_results = []
+            for result in results:
+                doc = result["document"]
+                doc["score"] = result["score"]
+                # Include source index in results
+                doc["index"] = result["index"]
+                formatted_results.append(doc)
+
+            return {
+                "index": index_name,
+                "results": formatted_results,
+                "status": "success"
+            }
+        except Exception as e:
+            logger.error(f"Error searching index {index_name}: {str(e)}")
+            return {
+                "index": index_name,
+                "results": [],
+                "status": "error",
+                "error": str(e)
+            }
+
+    def _merge_results(self, search_results: List[dict]) -> List[dict]:
+        """Merge results from multiple indices and sort by score."""
+        all_results = []
+        for result_set in search_results:
+            if result_set["status"] == "success":
+                all_results.extend(result_set["results"])
+
+        # Sort by score in descending order
+        all_results.sort(key=lambda x: x.get("score", 0), reverse=True)
+        return all_results[:self.top_k]
 
     def forward(self, query: str, search_mode: str = "hybrid", index_names: List[str] = None) -> str:
         # Send tool run message
@@ -93,16 +147,41 @@ class KnowledgeBaseSearchTool(Tool):
         if len(search_index_names) == 0:
             return json.dumps("No knowledge base selected. No relevant information found.", ensure_ascii=False)
 
-        if search_mode == "hybrid":
-            kb_search_data = self.search_hybrid(query=query, index_names=search_index_names)
-        elif search_mode == "accurate":
-            kb_search_data = self.search_accurate(query=query, index_names=search_index_names)
-        elif search_mode == "semantic":
-            kb_search_data = self.search_semantic(query=query, index_names=search_index_names)
+        # Handle parallel or sequential search based on number of indices
+        search_results = []
+        if len(search_index_names) > 1:
+            # Use parallel processing for multiple indices
+            with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+                # Submit all search tasks
+                future_to_index = {
+                    executor.submit(self._search_single_index, query, search_mode, index_name): index_name 
+                    for index_name in search_index_names
+                }
+                
+                # Collect results as they complete
+                for future in as_completed(future_to_index):
+                    result = future.result()
+                    search_results.append(result)
         else:
-            raise Exception(f"Invalid search mode: {search_mode}, only support: hybrid, accurate, semantic")
+            # Use original method for single index to maintain backward compatibility
+            if search_mode == "hybrid":
+                kb_search_data = self.search_hybrid(query=query, index_names=search_index_names)
+            elif search_mode == "accurate":
+                kb_search_data = self.search_accurate(query=query, index_names=search_index_names)
+            elif search_mode == "semantic":
+                kb_search_data = self.search_semantic(query=query, index_names=search_index_names)
+            else:
+                raise Exception(f"Invalid search mode: {search_mode}, only support: hybrid, accurate, semantic")
 
-        kb_search_results = kb_search_data["results"]
+            # Convert to the new format
+            search_results = [{
+                "index": "unknown",
+                "results": kb_search_data["results"],
+                "status": "success"
+            }]
+
+        # Merge results from all indices
+        kb_search_results = self._merge_results(search_results)
 
         if not kb_search_results:
             raise Exception("No results found! Try a less restrictive/shorter query.")
@@ -157,6 +236,7 @@ class KnowledgeBaseSearchTool(Tool):
             formatted_results.append(formatted_result)
             
         return json.dumps(formatted_results, ensure_ascii=False)
+        
     def search_hybrid(self, query, index_names):
         try:
             results = self.vdb_core.hybrid_search(
