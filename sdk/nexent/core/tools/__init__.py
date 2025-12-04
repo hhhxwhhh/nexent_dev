@@ -17,6 +17,7 @@ from .analyze_image_tool import AnalyzeImageTool
 from .knowledge_base_extension_tool import KnowledgeBaseExtensionTool
 from .get_current_time_tool import GetCurrentTimeTool
 from .pathology_image_analysis_tool import PathologyImageAnalysisTool
+from .medical_terminology_standardizer_tool import MedicalTerminologyStandardizerTool
 __all__ = [
     "ExaSearchTool", 
     "KnowledgeBaseSearchTool", 
@@ -36,5 +37,6 @@ __all__ = [
     "AnalyzeImageTool",
     "KnowledgeBaseExtensionTool",
     "GetCurrentTimeTool",
-    "PathologyImageAnalysisTool"
+    "PathologyImageAnalysisTool",
+    "MedicalTerminologyStandardizerTool"
 ]
