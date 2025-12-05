@@ -22,6 +22,7 @@ from .intelligent_medical_imaging_report_tool import IntelligentMedicalImagingRe
 from .intelligent_patient_communication_assistant_tool import IntelligentPatientCommunicationAssistantTool
 from .multimodel_qa_fusion_tool import MultimodalQAFusionTool
 from .case_image_compare_tool import CaseImageComparisonTool,TreatmentProgressAnalysisTool
+from .user_level_adaptive_response_tool import UserLevelAdaptiveResponseTool
 __all__ = [
     "ExaSearchTool", 
     "KnowledgeBaseSearchTool", 
@@ -47,5 +48,6 @@ __all__ = [
     "IntelligentPatientCommunicationAssistantTool",
     "MultimodalQAFusionTool",
     "CaseImageComparisonTool",
-    "TreatmentProgressAnalysisTool"
+    "TreatmentProgressAnalysisTool",
+    "UserLevelAdaptiveResponseTool"
 ]
