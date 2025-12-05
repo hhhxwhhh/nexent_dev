@@ -13,6 +13,7 @@ class ToolSign(Enum):
     TERMINAL_OPERATION = "t"  # Terminal operation tool identifier
     MULTIMODAL_OPERATION = "m" # Multimodal operation tool identifier
     SYSTEM_OPERATION = "s"     # System operation tool identifier
+    ANALYSIS_OPERATION = "o"  # Analysis operation tool identifier
 
 
 # Tool sign mapping for backward compatibility
@@ -25,6 +26,7 @@ TOOL_SIGN_MAPPING = {
     "terminal_operation": ToolSign.TERMINAL_OPERATION.value,
     "multimodal_operation": ToolSign.MULTIMODAL_OPERATION.value,
     "system_operation": ToolSign.SYSTEM_OPERATION.value,
+    "analysis_operation": ToolSign.ANALYSIS_OPERATION.value,
 }
 
 # Reverse mapping for lookup
@@ -39,6 +41,8 @@ class ToolCategory(Enum):
     TERMINAL = "terminal"
     MULTIMODAL = "multimodal"
     UTILITIES = "utilities"
+    TEXT_PROCESSING = "text_processing"
+    ANALYSIS_OPERATION = "analysis_operation"
 
 
 @dataclass
