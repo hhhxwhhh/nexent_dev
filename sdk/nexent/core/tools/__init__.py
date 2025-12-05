@@ -21,6 +21,7 @@ from .medical_terminology_standardizer_tool import MedicalTerminologyStandardize
 from .intelligent_medical_imaging_report_tool import IntelligentMedicalImagingReportTool
 from .intelligent_patient_communication_assistant_tool import IntelligentPatientCommunicationAssistantTool
 from .multimodel_qa_fusion_tool import MultimodalQAFusionTool
+from .case_image_compare_tool import CaseImageComparisonTool,TreatmentProgressAnalysisTool
 __all__ = [
     "ExaSearchTool", 
     "KnowledgeBaseSearchTool", 
@@ -44,5 +45,7 @@ __all__ = [
     "MedicalTerminologyStandardizerTool",
     "IntelligentMedicalImagingReportTool",
     "IntelligentPatientCommunicationAssistantTool",
-    "MultimodalQAFusionTool"
+    "MultimodalQAFusionTool",
+    "CaseImageComparisonTool",
+    "TreatmentProgressAnalysisTool"
 ]
