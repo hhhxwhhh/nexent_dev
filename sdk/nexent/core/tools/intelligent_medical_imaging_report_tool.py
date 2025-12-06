@@ -86,7 +86,8 @@ class IntelligentMedicalImagingReportTool(Tool):
                 {"role": "user", "content": prompt}
             ],
             "temperature": 0.3,
-            "max_tokens": 1500
+            "max_tokens": 1500,
+            "enable_thinking": False
         }
         
         try:

@@ -136,7 +136,8 @@ class CaseImageComparisonTool(Tool):
                 }
             ],
             "temperature": 0.2,
-            "max_tokens": 1500
+            "max_tokens": 1500,
+            "enable_thinking": False
         }
         
         try:

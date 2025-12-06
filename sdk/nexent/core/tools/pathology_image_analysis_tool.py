@@ -83,9 +83,10 @@ class PathologyImageAnalysisTool(Tool):
         """
         super().__init__()
         self.observer = observer
-        self.openkey_api_key = openkey_api_key
-        self.openkey_base_url = openkey_base_url
-        self.model_name = model_name
+        # 处理可能传入的Field对象，确保获取实际的默认值
+        self.openkey_api_key = openkey_api_key if isinstance(openkey_api_key, str) else (getattr(openkey_api_key, 'default', None) or "sk-me3TxKSeoFk66yYDB5F24cF0244043558b29774bD4C1C357")
+        self.openkey_base_url = openkey_base_url if isinstance(openkey_base_url, str) else (getattr(openkey_base_url, 'default', None) or "https://openkey.cloud/v1")
+        self.model_name = model_name if isinstance(model_name, str) else (getattr(model_name, 'default', None) or "gpt-4o-mini")
         self.running_prompt_zh = "正在进行病理图像分析..."
         self.running_prompt_en = "Analyzing pathology image..."
         
@@ -129,23 +130,7 @@ class PathologyImageAnalysisTool(Tool):
                 "4. 异常细胞识别：识别任何形态异常的细胞及其特征\n"
                 "5. 细胞活性评估：评估细胞的存活状态\n"
                 "6. 统计数据：提供细胞分布的统计数据\n"
-                "7. 临床意义：分析结果的临床意义和可能的病理状态\n"
-                "8. 置信度评估：对分析结果的可信度进行评估"
             ),
-            "tissue_classification": (
-                "这是一张组织切片图像，请分析组织类型和病理状态。\n\n"
-                "请按以下结构进行分析：\n"
-                "1. 组织学类型：确定组织的基本类型和亚型\n"
-                "2. 组织结构：描述组织的整体结构和排列方式\n"
-                "3. 细胞组成：分析组织中的主要细胞成分\n"
-                "4. 病理改变：识别任何病理性的结构或细胞改变\n"
-                "5. 炎症反应：评估炎症细胞的类型和数量\n"
-                "6. 血管和间质：描述血管和间质的变化\n"
-                "7. 病理分级：根据组织学特征进行病理分级（如适用）\n"
-                "8. 诊断意见：提供可能的诊断意见和鉴别诊断\n"
-                "9. 置信度评估：对分析结果的可信度进行评估\n"
-                "10. 临床建议：建议的进一步检查或处理方式"
-            )
         }
         
         prompt = analysis_prompts.get(analysis_type, analysis_prompts["tumor_detection"])
@@ -188,7 +173,8 @@ class PathologyImageAnalysisTool(Tool):
                 }
             ],
             "temperature": 0.2,
-            "max_tokens": 1200
+            "max_tokens": 1200,
+            "enable_thinking": False
         }
         
         try:

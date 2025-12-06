@@ -108,7 +108,8 @@ class IntelligentPatientCommunicationAssistantTool(Tool):
                 }
             ],
             "temperature": 0.5,
-            "max_tokens": 1200
+            "max_tokens": 1200,
+            "enable_thinking": False
         }
         
         try:

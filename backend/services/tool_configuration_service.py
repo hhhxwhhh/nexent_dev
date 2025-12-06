@@ -599,7 +599,8 @@ def _validate_local_tool(
                         instantiation_params[param_name] = param.default.default
                 else:
                     instantiation_params[param_name] = param.default
-
+                    
+        # 特殊处理KnowledgeBaseSearchTool参数，确保参数类型正确
         if tool_name == "knowledge_base_search":
             if not tenant_id or not user_id:
                 raise ToolExecutionException(f"Tenant ID and User ID are required for {tool_name} validation")
@@ -609,19 +610,77 @@ def _validate_local_tool(
                            for knowledge_info in knowledge_info_list]
             embedding_model = get_embedding_model(tenant_id=tenant_id)
             vdb_core = get_vector_db_core()
+            
+            # 清理参数，确保不会传递Field对象
+            cleaned_params = {}
+            for key, value in instantiation_params.items():
+                # 如果是Field对象，提取其默认值
+                if hasattr(value, 'default') and hasattr(value, '__class__') and 'Field' in value.__class__.__name__:
+                    if hasattr(value.default, 'default') and value.default.default is not PydanticUndefined:
+                        cleaned_params[key] = value.default.default
+                    elif not hasattr(value.default, 'default'):
+                        cleaned_params[key] = value.default
+                    else:
+                        cleaned_params[key] = None
+                else:
+                    cleaned_params[key] = value
+                    
             params = {
-                **instantiation_params,
+                **cleaned_params,
                 'index_names': index_names,
                 'vdb_core': vdb_core,
                 'embedding_model': embedding_model,
             }
             tool_instance = tool_class(**params)
+        elif tool_name == "pathology_image_analysis":
+            # 特殊处理PathologyImageAnalysisTool参数
+            # 清理参数，确保不会传递Field对象或None值给需要字符串的参数
+            cleaned_params = {}
+            for key, value in instantiation_params.items():
+                # 如果是Field对象，提取其默认值
+                if hasattr(value, 'default') and hasattr(value, '__class__') and 'Field' in value.__class__.__name__:
+                    if hasattr(value.default, 'default') and value.default.default is not PydanticUndefined:
+                        cleaned_params[key] = value.default.default
+                    elif not hasattr(value.default, 'default'):
+                        cleaned_params[key] = value.default
+                    else:
+                        cleaned_params[key] = None
+                else:
+                    cleaned_params[key] = value
+            
+            # 确保必要的字符串参数不为None
+            required_str_params = ['openkey_api_key', 'openkey_base_url', 'model_name']
+            for param_name in required_str_params:
+                if param_name in cleaned_params and cleaned_params[param_name] is None:
+                    # 获取字段定义中的默认值
+                    field_default = getattr(tool_class.__init__.__annotations__.get(param_name), 'default', None)
+                    if field_default and hasattr(field_default, 'default'):
+                        cleaned_params[param_name] = field_default.default
+                    elif isinstance(field_default, str):
+                        cleaned_params[param_name] = field_default
+                        
+            tool_instance = tool_class(**cleaned_params)
         elif tool_name == "analyze_image":
             if not tenant_id or not user_id:
                 raise ToolExecutionException(f"Tenant ID and User ID are required for {tool_name} validation")
             image_to_text_model = get_vlm_model(tenant_id=tenant_id)
+            
+            # 清理参数，确保不会传递Field对象
+            cleaned_params = {}
+            for key, value in instantiation_params.items():
+                # 如果是Field对象，提取其默认值
+                if hasattr(value, 'default') and hasattr(value, '__class__') and 'Field' in value.__class__.__name__:
+                    if hasattr(value.default, 'default') and value.default.default is not PydanticUndefined:
+                        cleaned_params[key] = value.default.default
+                    elif not hasattr(value.default, 'default'):
+                        cleaned_params[key] = value.default
+                    else:
+                        cleaned_params[key] = None
+                else:
+                    cleaned_params[key] = value
+                    
             params = {
-                **instantiation_params,
+                **cleaned_params,
                 'vlm_model': image_to_text_model,
                 'storage_client': minio_client
             }
@@ -630,15 +689,44 @@ def _validate_local_tool(
             if not tenant_id or not user_id:
                 raise ToolExecutionException(f"Tenant ID and User ID are required for {tool_name} validation")
             long_text_to_text_model = get_llm_model(tenant_id=tenant_id)
+            
+            # 清理参数，确保不会传递Field对象
+            cleaned_params = {}
+            for key, value in instantiation_params.items():
+                # 如果是Field对象，提取其默认值
+                if hasattr(value, 'default') and hasattr(value, '__class__') and 'Field' in value.__class__.__name__:
+                    if hasattr(value.default, 'default') and value.default.default is not PydanticUndefined:
+                        cleaned_params[key] = value.default.default
+                    elif not hasattr(value.default, 'default'):
+                        cleaned_params[key] = value.default
+                    else:
+                        cleaned_params[key] = None
+                else:
+                    cleaned_params[key] = value
+                    
             params = {
-                **instantiation_params,
+                **cleaned_params,
                 'llm_model': long_text_to_text_model,
                 'storage_client': minio_client,
                 "data_process_service_url": DATA_PROCESS_SERVICE
             }
             tool_instance = tool_class(**params)
         else:
-            tool_instance = tool_class(**instantiation_params)
+            # 清理参数，确保不会传递Field对象
+            cleaned_params = {}
+            for key, value in instantiation_params.items():
+                # 如果是Field对象，提取其默认值
+                if hasattr(value, 'default') and hasattr(value, '__class__') and 'Field' in value.__class__.__name__:
+                    if hasattr(value.default, 'default') and value.default.default is not PydanticUndefined:
+                        cleaned_params[key] = value.default.default
+                    elif not hasattr(value.default, 'default'):
+                        cleaned_params[key] = value.default
+                    else:
+                        cleaned_params[key] = None
+                else:
+                    cleaned_params[key] = value
+                    
+            tool_instance = tool_class(**cleaned_params)
 
         result = tool_instance.forward(**(inputs or {}))
         return result
@@ -646,6 +734,7 @@ def _validate_local_tool(
         logger.error(f"Local tool validation failed for {tool_name}: {e}")
         raise ToolExecutionException(
             f"Local tool {tool_name} validation failed: {str(e)}")
+
 
 
 def _validate_langchain_tool(

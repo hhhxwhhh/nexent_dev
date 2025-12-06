@@ -78,7 +78,8 @@ class MedicalTerminologyStandardizerTool(Tool):
                 {"role": "user", "content": prompt}
             ],
             "temperature": 0.1,
-            "max_tokens": 500
+            "max_tokens": 500,
+            "enable_thinking": False
         }
         
         try:

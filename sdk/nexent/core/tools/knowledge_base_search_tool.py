@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import List
+from typing import List, Optional, Union
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from pydantic import Field
@@ -49,30 +49,34 @@ class KnowledgeBaseSearchTool(Tool):
 
     def __init__(
         self,
-        top_k: int = Field(description="Maximum number of search results", default=5),
-        index_names: List[str] = Field(description="The list of index names to search", default=None, exclude=True),
-        observer: MessageObserver = Field(description="Message observer", default=None, exclude=True),
-        embedding_model: BaseEmbedding = Field(description="The embedding model to use", default=None, exclude=True),
-        vdb_core: VectorDatabaseCore = Field(description="Vector database client", default=None, exclude=True),
-        max_workers: int = Field(description="Maximum number of worker threads for parallel processing", default=4, exclude=True),
+        top_k: int = 5,
+        index_names: Optional[List[str]] = None,
+        observer: Optional[MessageObserver] = None,
+        embedding_model: Optional[BaseEmbedding] = None,
+        vdb_core: Optional[VectorDatabaseCore] = None,
+        max_workers: int = 4,
     ):
         """Initialize the KBSearchTool.
 
         Args:
             top_k (int, optional): Number of results to return. Defaults to 5.
+            index_names (List[str], optional): The list of index names to search. Defaults to None.
             observer (MessageObserver, optional): Message observer instance. Defaults to None.
+            embedding_model (BaseEmbedding, optional): The embedding model to use. Defaults to None.
+            vdb_core (VectorDatabaseCore, optional): Vector database client. Defaults to None.
             max_workers (int, optional): Maximum number of worker threads for parallel processing. Defaults to 4.
 
         Raises:
             ValueError: If language is not supported
         """
         super().__init__()
-        self.top_k = top_k
+        # Ensure parameters are properly handled
+        self.top_k = top_k if isinstance(top_k, int) else 5
         self.observer = observer
         self.vdb_core = vdb_core
         self.index_names = [] if index_names is None else index_names
         self.embedding_model = embedding_model
-        self.max_workers = max_workers
+        self.max_workers = max_workers if isinstance(max_workers, int) else 4
 
         self.record_ops = 1  # To record serial number
         self.running_prompt_zh = "知识库检索中..."
@@ -128,7 +132,7 @@ class KnowledgeBaseSearchTool(Tool):
         all_results.sort(key=lambda x: x.get("score", 0), reverse=True)
         return all_results[:self.top_k]
 
-    def forward(self, query: str, search_mode: str = "hybrid", index_names: List[str] = None) -> str:
+    def forward(self, query: str, search_mode: str = "hybrid", index_names: Optional[List[str]] = None) -> str:
         # Send tool run message
         if self.observer:
             running_prompt = self.running_prompt_zh if self.observer.lang == "zh" else self.running_prompt_en
@@ -143,6 +147,10 @@ class KnowledgeBaseSearchTool(Tool):
         logger.info(
             f"KnowledgeBaseSearchTool called with query: '{query}', search_mode: '{search_mode}', index_names: {search_index_names}"
         )
+
+        # Ensure index_names is always a list
+        if not isinstance(search_index_names, list):
+            search_index_names = []
 
         if len(search_index_names) == 0:
             return json.dumps("No knowledge base selected. No relevant information found.", ensure_ascii=False)
@@ -192,14 +200,22 @@ class KnowledgeBaseSearchTool(Tool):
             # Temporarily correct the source_type stored in the knowledge base
             source_type = single_search_result.get("source_type", "")
             source_type = "file" if source_type in ["local", "minio"] else source_type
+            
+            # 提取标题，确保至少有一个标题
             title = single_search_result.get("title")
             if not title:
-                title = single_search_result.get("filename", "")
+                title = single_search_result.get("filename", "未命名文档")
+                
+            # 确保URL字段始终存在
+            url = single_search_result.get("path_or_url", "")
+            if not url:
+                url = single_search_result.get("url", "")
+                
             search_result_message = SearchResultTextMessage(
                 title=title,
                 text=single_search_result.get("content", ""),
                 source_type=source_type,
-                url=single_search_result.get("path_or_url", ""),
+                url=url,
                 filename=single_search_result.get("filename", ""),
                 published_date=single_search_result.get("create_time", ""),
                 score=single_search_result.get("score", 0),
@@ -218,6 +234,7 @@ class KnowledgeBaseSearchTool(Tool):
         if self.observer:
             search_results_data = json.dumps(search_results_json, ensure_ascii=False)
             self.observer.add_message("", ProcessType.SEARCH_CONTENT, search_results_data)
+            
         formatted_results = []
         for i, result in enumerate(search_results_return):
             # 生成引用标记，格式为[[字母+数字]]，例如[[a1]], [[b2]]
@@ -225,13 +242,13 @@ class KnowledgeBaseSearchTool(Tool):
             number = (self.record_ops - len(search_results_return) + i) % 10 + 1
             citation_mark = f"[[{alphabet}{number}]]"
             
-            # 在结果中添加引用标记
+            # 确保所有必需字段都存在
             formatted_result = {
-                "content": result["text"],
-                "title": result["title"],
-                "url": result["url"],
+                "content": result.get("text", ""),
+                "title": result.get("title", "未命名文档"),
+                "url": result.get("url", ""),
                 "citation_mark": citation_mark,
-                "score": result["score"]
+                "score": result.get("score", 0)
             }
             formatted_results.append(formatted_result)
             
@@ -277,7 +294,7 @@ class KnowledgeBaseSearchTool(Tool):
                 "total": len(formatted_results),
             }
         except Exception as e:
-            raise Exception(detail=f"Error during accurate search: {str(e)}")
+            raise Exception(f"Error during accurate search: {str(e)}")
 
     def search_semantic(self, query, index_names):
         try:
@@ -299,4 +316,4 @@ class KnowledgeBaseSearchTool(Tool):
                 "total": len(formatted_results),
             }
         except Exception as e:
-            raise Exception(detail=f"Error during semantic search: {str(e)}")
+            raise Exception(f"Error during semantic search: {str(e)}")
